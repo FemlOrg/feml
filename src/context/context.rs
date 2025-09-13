@@ -2,18 +2,18 @@ use crate::types::FemlObjectType;
 use crate::utils::FEML_MEM_ALIGN;
 
 #[derive(Debug, Clone, Copy)]
-struct FemlObject {
+pub struct FemlObject {
     offset: usize,
     size: usize,
     object_type: FemlObjectType,
 }
 
 #[derive(Debug, Clone)]
-struct FemlContext {
-    memory_size: usize,
-    mem_buffer: Vec<u8>,
-    n_objects: i32,
-    objects: Vec<FemlObject>,
+pub struct FemlContext {
+    pub memory_size: usize,
+    pub mem_buffer: Vec<u8>,
+    pub n_objects: i32,
+    pub objects: Vec<FemlObject>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ impl FemlContext {
     }
 }
 
-fn feml_new_object(
+pub fn feml_new_object(
     ctx: &mut FemlContext,
     object_type: FemlObjectType,
     size: usize,
