@@ -1,7 +1,9 @@
+use crate::utils::pad::FEML_MEM_ALIGN;
+use crate::{feml_pad, feml_warn};
 use crate::types::FemlObjectType;
-use crate::utils::FEML_MEM_ALIGN;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct FemlObject {
    pub offset: usize,
    pub size: usize,
@@ -31,9 +33,7 @@ impl FemlContext {
         let memory_size = if !params.memory_buffer.is_empty() {
             params.memory_size
         } else {
-            // TODO: ADD FEML_PAD
-            // FEML_PAD(params.memory_size, FEML_MEM_ALIGN)
-            params.memory_size
+            feml_pad!(params.memory_size, FEML_MEM_ALIGN)
         };
 
         FemlContext {
@@ -52,14 +52,15 @@ pub fn feml_new_object(
 ) -> Option<&FemlObject> {
     let cur_end = ctx.objects.last().map_or(0, |obj| obj.offset + obj.size);
 
-    let size_needed = (size + FEML_MEM_ALIGN - 1) & !(FEML_MEM_ALIGN - 1);
+    let size_needed  = feml_pad!(size, FEML_MEM_ALIGN);
 
     if cur_end + size_needed > ctx.memory_size {
-        eprintln!(
+        feml_warn!(
             "not enough space : needed {}, available{}",
             cur_end + size_needed,
             ctx.memory_size
         );
+        return None;
     }
 
     let obj_new = FemlObject {

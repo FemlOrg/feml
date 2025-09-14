@@ -1,1 +1,0 @@
-pub const FEML_MEM_ALIGN : usize = 16;
