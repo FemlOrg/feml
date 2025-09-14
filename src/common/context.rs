@@ -5,9 +5,9 @@ use crate::types::FemlObjectType;
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct FemlObject {
-    offset: usize,
-    size: usize,
-    object_type: FemlObjectType,
+   pub offset: usize,
+   pub size: usize,
+   pub object_type: FemlObjectType,
 }
 
 #[derive(Debug, Clone)]
@@ -20,8 +20,8 @@ pub struct FemlContext {
 
 #[derive(Debug, Clone)]
 pub struct FemlInitParams {
-    memory_size: usize,
-    memory_buffer: Vec<u8>,
+   pub memory_size: usize,
+   pub memory_buffer: Vec<u8>,
 }
 
 impl FemlContext {
