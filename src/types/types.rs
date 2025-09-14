@@ -4,3 +4,15 @@ pub enum FemlObjectType {
   FemlObjectTypeGraph,
   FemlObjectTypeBuffer,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TensorType {
+  TensorUnknown,
+  TensorTypeF32,
+  TensorTypeF16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FemlOpType {
+  FemlOpTypeUnknown,
+}

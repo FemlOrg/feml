@@ -3,9 +3,9 @@ use crate::utils::FEML_MEM_ALIGN;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FemlObject {
-    offset: usize,
-    size: usize,
-    object_type: FemlObjectType,
+   pub offset: usize,
+   pub size: usize,
+   pub object_type: FemlObjectType,
 }
 
 #[derive(Debug, Clone)]
@@ -17,9 +17,9 @@ pub struct FemlContext {
 }
 
 #[derive(Debug, Clone)]
-struct FemlInitParams {
-    memory_size: usize,
-    memory_buffer: Vec<u8>,
+pub struct FemlInitParams {
+   pub memory_size: usize,
+   pub memory_buffer: Vec<u8>,
 }
 
 impl FemlContext {
