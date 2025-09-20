@@ -1,24 +1,13 @@
-use crate::common::tensor::FemlTensor;
+use super::backend_trait::*;
+use crate::common::def::FemlGuid;
 
-// use trait to implment backend dynamic polymorphism
-pub trait FemlBackendBufferTypeInterface {
-    fn get_name(&self, buffer_type: &FemlBackendBufferType) -> *const str;
-
-    // allocate a buffer of this type
-    fn alloc_buffer(&self, buffer_type: &FemlBackendBufferType, size: usize) -> FemlBackendBuffer;
-
-    // tensor alignment
-    fn get_alignment(&self, buffer_type: &FemlBackendBufferType) -> usize;
-
-    // max buffer size that can be allocated (defaults to SIZE_MAX)
-    fn get_max_size(&self, buffer_type: &FemlBackendBufferType) -> usize;
-
-    // data size needed to allocate the tensor, including padding (defaults to feml_nbytes)
-    fn get_alloc_size(&self, buffer_type: &FemlBackendBufferType, tensor: &mut FemlTensor);
-
-    // check if tensor data is in host memory and uses standard ggml tensor layout (defaults to false)
-    fn is_host(&self, buffer_type: &FemlBackendBufferType) -> bool;
+pub enum FemlBackendBufferUsage {
+    Any,
+    Weights,
+    Compute,
 }
+
+
 
 pub struct FemlBackendBufferType {
     pub interface: Box<dyn FemlBackendBufferTypeInterface>,
@@ -26,16 +15,30 @@ pub struct FemlBackendBufferType {
     pub context: *mut u8,
 }
 
-pub trait FemlBackendBufferInterface {
-    // free the buffer
-    fn free_buffer(&self, buffer: &FemlBackendBuffer);
-
-    // base address of the buffer
-    fn get_base(&self, buffer: &FemlBackendBuffer);
-
-    //
+pub struct FemlBackendBuffer {
+    pub interface: Box<dyn FemlBackendBufferInterface>,
+    pub buffer_type: FemlBackendBufferType,
+    pub context: *mut u8,
+    pub size: usize,
+    pub usage: FemlBackendBufferUsage,
 }
 
-pub struct FemlBackendBuffer;
+pub struct FemlBackend {
+    pub guid: FemlGuid,
+    pub interface: Box<dyn FemlBackendInterface>,
+    pub device: FemlBackendDevice,
+    pub context: *const u8,
+}
 
 pub struct FemlBackendDevice;
+
+pub struct FemlBackendEvent;
+// TODO
+impl FemlBackendBufferType {
+    // fn feml_backend_buffer_init(&self, interface: Box<dyn FemlBackendBufferInterface>, context: *mut u8, size: usize) -> FemlBackendBufferType{}
+
+    // fn feml_backend_buffer_is_multi_buffer(&self) -> bool {}
+
+    // fn feml_backend_multi_buffer_set_usage(&self, usage: &FemlBackendBufferUsage);
+}
+
