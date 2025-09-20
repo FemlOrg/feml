@@ -1,7 +1,7 @@
 use crate::utils::pad::FEML_MEM_ALIGN;
 use crate::{feml_pad, feml_warn};
 use crate::types::FemlObjectType;
-
+use super::buf::MemoryBuffer;
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct FemlObject {
@@ -13,7 +13,7 @@ pub struct FemlObject {
 #[derive(Debug, Clone)]
 pub struct FemlContext {
     pub memory_size: usize,
-    pub mem_buffer: Vec<u8>,
+    pub mem_buffer: MemoryBuffer,
     pub n_objects: i32,
     pub objects: Vec<FemlObject>,
 }
@@ -21,7 +21,7 @@ pub struct FemlContext {
 #[derive(Debug, Clone)]
 pub struct FemlInitParams {
    pub memory_size: usize,
-   pub memory_buffer: Vec<u8>,
+   pub memory_buffer: MemoryBuffer,
 }
 
 impl FemlContext {
