@@ -5,8 +5,7 @@ use std::rc::Rc;
 use crate::common::context::FemlContext;
 use crate::common::context::*;
 use crate::common::def::*;
-use crate::common::type_traits::*;
-use crate::types::*;
+use crate::types::{FemlObjectType, FemlOpType, TensorType, type_traits::*};
 
 #[derive(Debug, Clone)]
 pub struct FemlTensor {
