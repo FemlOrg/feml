@@ -82,11 +82,8 @@ pub fn feml_new_tensor(
         ptr::null_mut()
     };
 
-    let obj_alloc_size = if view_src.is_none() && ctx.mem_buffer.is_empty() {
-        data_size
-    } else {
-        0
-    };
+    let obj_alloc_size =
+        if view_src.is_none() && ctx.mem_buffer.is_empty() { data_size } else { 0 };
 
     let object = feml_new_object(
         ctx,

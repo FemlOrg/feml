@@ -63,11 +63,7 @@ pub fn feml_new_object(
         return None;
     }
 
-    let obj_new = FemlObject {
-        offset: cur_end,
-        size: size_needed,
-        object_type: object_type,
-    };
+    let obj_new = FemlObject { offset: cur_end, size: size_needed, object_type: object_type };
 
     ctx.objects.push(obj_new);
     ctx.objects.last()
