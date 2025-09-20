@@ -1,13 +1,13 @@
+use super::buf::MemoryBuffer;
+use crate::types::FemlObjectType;
 use crate::utils::pad::FEML_MEM_ALIGN;
 use crate::{feml_pad, feml_warn};
-use crate::types::FemlObjectType;
-use super::buf::MemoryBuffer;
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct FemlObject {
-   pub offset: usize,
-   pub size: usize,
-   pub object_type: FemlObjectType,
+    pub offset: usize,
+    pub size: usize,
+    pub object_type: FemlObjectType,
 }
 
 #[derive(Debug, Clone)]
@@ -20,8 +20,8 @@ pub struct FemlContext {
 
 #[derive(Debug, Clone)]
 pub struct FemlInitParams {
-   pub memory_size: usize,
-   pub memory_buffer: MemoryBuffer,
+    pub memory_size: usize,
+    pub memory_buffer: MemoryBuffer,
 }
 
 impl FemlContext {
@@ -52,7 +52,7 @@ pub fn feml_new_object(
 ) -> Option<&FemlObject> {
     let cur_end = ctx.objects.last().map_or(0, |obj| obj.offset + obj.size);
 
-    let size_needed  = feml_pad!(size, FEML_MEM_ALIGN);
+    let size_needed = feml_pad!(size, FEML_MEM_ALIGN);
 
     if cur_end + size_needed > ctx.memory_size {
         feml_warn!(

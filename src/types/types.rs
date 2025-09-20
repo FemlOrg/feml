@@ -17,11 +17,10 @@ pub enum FemlOpType {
     FemlOpTypeUnknown,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FemlType {
-   FemlTypeF32,
-   FemlTypeF16 
+    FemlTypeF32,
+    FemlTypeF16,
 }
 
 pub const FEML_TYPE_COUNT: usize = 2;
