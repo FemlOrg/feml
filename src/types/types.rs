@@ -16,3 +16,7 @@ pub enum TensorType {
 pub enum FemlOpType {
   FemlOpTypeUnknown,
 }
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+
