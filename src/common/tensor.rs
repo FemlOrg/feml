@@ -1,27 +1,27 @@
+use std::cell::RefCell;
 use std::ptr;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use crate::common::context::FemlContext;
-use crate::types::*;
+use crate::common::context::*;
 use crate::common::def::*;
 use crate::common::type_traits::*;
-use crate::common::context::*;
+use crate::types::*;
 
 #[derive(Debug, Clone)]
 pub struct FemlTensor {
     pub tensor_type: TensorType,
-    pub ne : [usize; 4],
-    pub nb : [usize; 4],
-    pub op : FemlOpType,
-    pub op_params : [i32; 16],
-    pub flags : i32,
-    pub src : Vec<Rc<FemlTensor>>,
-    pub view_src : Option<Rc<FemlTensor>>,
-    pub view_offs : i64,
-    pub data : *mut u8,
-    pub name : String,
-    pub extra : *mut u8,
+    pub ne: [usize; 4],
+    pub nb: [usize; 4],
+    pub op: FemlOpType,
+    pub op_params: [i32; 16],
+    pub flags: i32,
+    pub src: Vec<Rc<FemlTensor>>,
+    pub view_src: Option<Rc<FemlTensor>>,
+    pub view_offs: i64,
+    pub data: *mut u8,
+    pub name: *const str,
+    pub extra: *mut u8,
 }
 
 pub fn feml_nbytes(tensor: &FemlTensor) -> usize {
@@ -41,24 +41,24 @@ pub fn feml_nbytes(tensor: &FemlTensor) -> usize {
         nbytes
     } else {
         let mut nbytes = (tensor.ne[0] as usize) * tensor.nb[0] / blck_size;
-        
+
         for i in 1..FEML_MAX_DIMS {
             if tensor.ne[i] > 1 {
                 nbytes += ((tensor.ne[i] - 1) as usize) * tensor.nb[i];
             }
         }
-        
+
         nbytes
     }
 }
 
 pub fn feml_new_tensor(
-    ctx : &mut FemlContext,
-    tensor_type : TensorType,
-    dims : usize,
-    ne : &Vec<usize>,
-    view_src : Option<Rc<FemlTensor>>,
-    view_offs : i64,
+    ctx: &mut FemlContext,
+    tensor_type: TensorType,
+    dims: usize,
+    ne: &Vec<usize>,
+    view_src: Option<Rc<FemlTensor>>,
+    view_offs: i64,
 ) -> Rc<RefCell<FemlTensor>> {
     assert!(tensor_type != TensorType::TensorUnknown);
     assert!(dims > 0 && dims < FEML_MAX_DIMS);
@@ -78,7 +78,7 @@ pub fn feml_new_tensor(
     }
 
     let data = if let Some(ref vs) = view_src {
-        unsafe {vs.data.offset(view_offs as isize)}
+        unsafe { vs.data.offset(view_offs as isize) }
     } else {
         ptr::null_mut()
     };
@@ -89,12 +89,14 @@ pub fn feml_new_tensor(
         0
     };
 
-    let object = feml_new_object(ctx, FemlObjectType::FemlObjectTypeTensor, FEML_TENSOR_SIZE + obj_alloc_size);
+    let object = feml_new_object(
+        ctx,
+        FemlObjectType::FemlObjectTypeTensor,
+        FEML_TENSOR_SIZE + obj_alloc_size,
+    );
     assert!(object.is_some());
-    // let result = unsafe { &mut *(ctx.mem_buffer.as_mut_ptr().offset(object.unwrap().offset as isize) as *mut FemlTensor) };
     let object_offset = object.unwrap().offset as isize;
-    let tensor_ptr = unsafe {ctx.mem_buffer.as_mut_ptr().offset(object_offset) as *mut FemlTensor} ;
-    let result = unsafe {&mut *tensor_ptr};
+    let result = unsafe { get_tensor(ctx, object_offset) };
 
     result.tensor_type = tensor_type;
     result.ne = [1, 1, 1, 1];
@@ -106,12 +108,18 @@ pub fn feml_new_tensor(
     result.view_src = view_src;
     result.view_offs = view_offs;
     result.data = if obj_alloc_size > 0 {
-        unsafe { &mut *(ctx.mem_buffer.as_mut_ptr().offset((object_offset + FEML_TENSOR_SIZE as isize) as isize) as * mut u8)}
+        unsafe {
+            &mut *(ctx
+                .mem_buffer
+                .as_ptr()
+                .offset((object_offset + FEML_TENSOR_SIZE as isize) as isize)
+                as *mut u8)
+        }
     } else {
         data
     };
     result.extra = ptr::null_mut();
-    
+
     for i in 0..dims {
         (*result).ne[i] = ne[i];
     }
@@ -122,4 +130,12 @@ pub fn feml_new_tensor(
         (*result).nb[i] = (*result).nb[i - 1] * (*result).ne[i - 1];
     }
     Rc::new(RefCell::new(result.clone()))
+}
+
+unsafe fn get_tensor_ptr(ctx: &FemlContext, offset: isize) -> *mut FemlTensor {
+    unsafe { ctx.mem_buffer.as_ptr().offset(offset) as *mut FemlTensor }
+}
+
+unsafe fn get_tensor(ctx: &FemlContext, offset: isize) -> &mut FemlTensor {
+    unsafe { &mut *get_tensor_ptr(ctx, offset) }
 }
