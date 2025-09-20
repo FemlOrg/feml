@@ -6,10 +6,7 @@ pub struct MemoryBuffer {
 
 impl MemoryBuffer {
     pub fn new(size: usize) -> Self {
-        Self {
-            size: size,
-            buf: vec![0u8; size],
-        }
+        Self { size: size, buf: vec![0u8; size] }
     }
 
     pub fn is_empty(&self) -> bool {
