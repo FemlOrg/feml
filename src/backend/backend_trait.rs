@@ -114,3 +114,33 @@ fn feml_backend_buffer_copy_tensor(src: &FemlTensor, dst: &mut FemlTensor) {}
 
 // TODO
 // fn feml_backend_multi_buffer_alloc_buffer(buffers: &mut Vec<FemlBackendBuffer>, n_buffers: usize) -> FemlBackendBuffer {}
+
+pub trait FemlBackendDeviceInterface {
+    fn get_name(&self, device: &FemlBackendDevice) -> String;
+    fn get_description(&self, device: &FemlBackendDevice) -> String;
+    fn get_memory(&self, device: &FemlBackendDevice, free: &mut i64, total: &mut i64);
+    fn get_type(&self, device: &FemlBackendDevice) -> FemlBackendDeviceType;
+    fn get_props(&self, device: &FemlBackendDevice, props: &mut FemlBackendDeviceProps);
+    fn init_backend(&self, device: &FemlBackendDevice, params: &Vec<u8>);
+    fn get_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType;
+    fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType;
+    fn buffer_fron_host_ptr(
+        &self,
+        &device: FemlBackendDevice,
+        &data: Vec<u8>,
+        max_tensor_size: usize,
+    ) -> FemlBackendBuffer;
+    fn support_op(&self, device: &FemlBackendDevice, op: &FemlTensor) -> bool;
+    fn support_buft(&self, device: &FemlBackendDevice, buft: &FemlBackendBufferType) -> bool;
+    fn offload_op(&self, device: &FemlBackendDevice, op: &FemlTensor) -> bool;
+    fn event_new(&self, device: &FemlBackendDevice) -> FemlBackendEvent;
+    fn event_free(&self, device: &FemlBackendDevice, event: &FemlBackendEvent);
+    fn event_synchronize(&self, device: &FemlBackendDevice, event: &FemlBackendEvent);
+}
+
+pub trait FemlBackendRegInterface {
+    fn get_name(&self, reg: &FemlBackendReg) -> String;
+    fn get_device_count(&self, reg: &FemlBackendReg) -> usize;
+    fn get_device(&self, reg: &FemlBackendReg, index: usize) -> FemlBackendDevice;
+    fn get_proc_address(&self, reg: &FemlBackendReg, name: &str) -> *const u8;
+}
