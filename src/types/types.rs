@@ -23,4 +23,12 @@ pub enum FemlType {
     FemlTypeF16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FemlStatus {
+    AllocFailed,
+    Failed,
+    Success,
+    Aborted,
+}
+
 pub const FEML_TYPE_COUNT: usize = 2;
