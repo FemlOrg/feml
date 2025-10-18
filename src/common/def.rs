@@ -1,5 +1,3 @@
-use std::vec;
-
 pub const FEML_MAX_DIMS: usize = 3;
 pub const FEML_MAX_PARAMS: usize = 64;
 pub const FEML_MAX_SRC: usize = 10;
