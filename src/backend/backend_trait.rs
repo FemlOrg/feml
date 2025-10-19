@@ -1,3 +1,6 @@
+use core::sync;
+use std::sync::Arc;
+
 use super::backend::*;
 use crate::backend::cpu::compute_graph::FemlComputeGraph;
 use crate::backend::cpu::cpu_register::BackendFunction;
@@ -96,7 +99,7 @@ pub trait FemlBackendInterface {
     // complete all pending operations (required if the backend supports async operations)
     fn synchronize(&self, backend: &FemlBackend);
 
-    fn graph_plan_create(&self, backend: &FemlBackend, compute_graph: &FemlComputeGraph);
+    fn graph_plan_create(&self, backend: &mut FemlBackend, compute_graph: &FemlComputeGraph);
 
     fn graph_plan_free(&self, backend: &FemlBackend, plan: *const u8);
 
@@ -114,15 +117,6 @@ pub trait FemlBackendInterface {
     fn event_record(&self, backend: &FemlBackend, event: &FemlBackendEvent);
 
     fn event_wait(&self, backend: &FemlBackend, event: &FemlBackendEvent);
-}
-
-// TODO
-impl FemlBackendBufferType {
-    // fn feml_backend_buffer_init(&self, interface: Box<dyn FemlBackendBufferInterface>, context: *mut u8, size: usize) -> FemlBackendBufferType{}
-
-    // fn feml_backend_buffer_is_multi_buffer(&self) -> bool {}
-
-    // fn feml_backend_multi_buffer_set_usage(&self, usage: &FemlBackendBufferUsage);
 }
 
 // TODO
@@ -168,12 +162,12 @@ pub trait FemlBackendDeviceInterface {
     fn event_synchronize(&self, device: &FemlBackendDevice, event: &FemlBackendEvent);
 }
 
-pub trait FemlBackendRegInterface {
+pub trait FemlBackendRegInterface: Send + Sync {
     fn get_name(&self, reg: &FemlBackendReg) -> &'static str;
 
     fn get_device_count(&self, reg: &FemlBackendReg) -> usize;
 
-    fn get_device(&self, reg: Rc<FemlBackendReg>, index: usize) -> Option<FemlBackendDevice>;
+    fn get_device(&self, reg: &Arc<FemlBackendReg>, index: usize) -> Option<FemlBackendDevice>;
 
     fn get_proc_address(&self, reg: &FemlBackendReg, name: &str) -> BackendFunction;
 }

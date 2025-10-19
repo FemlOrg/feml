@@ -1,7 +1,7 @@
-use std::any::Any;
-use std::rc::Rc;
-
 use super::backend_trait::*;
+use crate::common::def::FemlGuid;
+use std::any::Any;
+use std::sync::Arc;
 
 pub enum FemlBackendBufferUsage {
     Any,
@@ -24,13 +24,13 @@ pub struct FemlBackendDevCaps {
 
 pub struct FemlBackendBufferType {
     pub interface: Box<dyn FemlBackendBufferTypeInterface>,
-    pub device: FemlBackendDevice,
-    pub context: *mut u8,
+    pub device: Arc<FemlBackendDevice>,
+    pub context: Option<Box<dyn Any>>,
 }
 
 pub struct FemlBackendBuffer {
     pub interface: Box<dyn FemlBackendBufferInterface>,
-    pub buffer_type: FemlBackendBufferType,
+    pub buffer_type: Arc<FemlBackendBufferType>,
     pub context: *mut u8,
     pub size: usize,
     pub usage: FemlBackendBufferUsage,
@@ -46,9 +46,9 @@ pub struct FemlBackendDeviceProps {
 }
 
 pub struct FemlBackend {
-    pub guid: Vec<u8>,
+    pub guid: FemlGuid,
     pub interface: Box<dyn FemlBackendInterface>,
-    pub device: FemlBackendDevice,
+    pub device: Arc<FemlBackendDevice>,
     pub context: Option<Box<dyn Any>>,
 }
 
@@ -56,16 +56,15 @@ pub struct FemlBackendEvent {
     pub interface: Box<dyn FemlBackendDeviceInterface>,
     pub context: Option<Box<dyn Any>>,
 }
-
 pub struct FemlBackendReg {
     pub interface: Box<dyn FemlBackendRegInterface>,
-    pub context: Option<Box<dyn Any>>,
+    pub context: Option<Box<dyn Any + Send + Sync>>,
     pub api_version: i32,
 }
 
 pub struct FemlBackendDevice {
     pub interface: Box<dyn FemlBackendDeviceInterface>,
-    pub reg: Rc<FemlBackendReg>,
+    pub reg: Arc<FemlBackendReg>,
     pub context: Option<Box<dyn Any>>,
 }
 
@@ -78,18 +77,11 @@ impl FemlBackendBufferType {
     // fn feml_backend_multi_buffer_set_usage(&self, usage: &FemlBackendBufferUsage);
 }
 
-pub fn feml_backend_reg_dev_get(
-    reg: Rc<FemlBackendReg>,
-    index: usize,
-) -> Option<FemlBackendDevice> {
-    reg.interface.get_device(Rc::clone(&reg), index)
-}
-
 impl FemlBackend {
     pub fn new(
-        guid: Vec<u8>,
+        guid: FemlGuid,
         interface: Box<dyn FemlBackendInterface>,
-        device: FemlBackendDevice,
+        device: Arc<FemlBackendDevice>,
         context: Option<Box<dyn Any>>,
     ) -> Self {
         FemlBackend { guid, interface, device, context }
@@ -104,12 +96,38 @@ impl FemlBackend {
     }
 }
 
+impl FemlBackendReg {
+    pub fn new(
+        interface: Box<dyn FemlBackendRegInterface>,
+        context: Option<Box<dyn Any + Send + Sync>>,
+        api_version: i32,
+    ) -> Self {
+        FemlBackendReg { interface, context, api_version }
+    }
+
+    pub fn set_context<T: 'static + Send + Sync>(&mut self, context: T) {
+        self.context = Some(Box::new(context));
+    }
+
+    pub fn get_context<T: 'static>(&mut self) -> Option<&mut T> {
+        self.context.as_mut()?.downcast_mut::<T>()
+    }
+}
+
 impl FemlBackendDevice {
     pub fn new(
         interface: Box<dyn FemlBackendDeviceInterface>,
-        reg: Rc<FemlBackendReg>,
+        reg: Arc<FemlBackendReg>,
         context: Option<Box<dyn Any>>,
     ) -> Self {
-        FemlBackendDevice { interface, reg: Rc::clone(&reg), context }
+        FemlBackendDevice { interface, reg, context }
+    }
+
+    pub fn set_context<T: 'static>(&mut self, context: T) {
+        self.context = Some(Box::new(context));
+    }
+
+    pub fn get_context<T: 'static>(&mut self) -> Option<&mut T> {
+        self.context.as_mut()?.downcast_mut::<T>()
     }
 }

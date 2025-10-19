@@ -1,45 +1,22 @@
 #[cfg(target_os = "linux")]
-use libc::{sysconf, _SC_PAGE_SIZE, _SC_PHYS_PAGES};
-use std::any::Any;
+use libc::{_SC_PAGE_SIZE, _SC_PHYS_PAGES, sysconf};
 
 use super::util::get_cpu_description;
 use crate::backend::backend::{
-    feml_backend_reg_dev_get, FemlBackend, FemlBackendBuffer, FemlBackendBufferType,
-    FemlBackendDevCaps, FemlBackendDevice, FemlBackendDeviceProps, FemlBackendDeviceType,
-    FemlBackendEvent, FemlBackendReg,
+    FemlBackendBuffer, FemlBackendBufferType, FemlBackendDevCaps, FemlBackendDevice,
+    FemlBackendDeviceProps, FemlBackendDeviceType, FemlBackendEvent,
 };
 use crate::backend::backend_trait::{FemlBackendDeviceInterface, FemlBackendRegInterface};
+use crate::backend::cpu::api::feml_backend_cpu_init;
 use crate::backend::cpu::cpu_backend::FemlBackendCpuImpl;
-use crate::backend::cpu::cpu_backend_reg_device::feml_backend_cpu_reg;
 use crate::backend::cpu::cpu_context::FemlBackendCpuContext;
 use crate::backend::cpu::cpu_register::{BackendFunction, BackendRegistry};
-use crate::common::def::FEML_DEFAULT_N_THREAD;
+use crate::common::def::{FEML_DEFAULT_N_THREAD, FemlGuid};
 use crate::common::tensor::FemlTensor;
 use crate::types::{FemlOpType, FemlStatus};
 use crate::{backend::*, feml_abort, feml_error, utils};
 
-fn feml_cpu_init() {
-    //Todo imply feml cpu init
-}
-
-fn feml_backend_cpu_init() -> Option<FemlBackend> {
-    feml_cpu_init();
-    let ctx: Option<Box<dyn Any>> =
-        Some(Box::new(FemlBackendCpuContext::new(FEML_DEFAULT_N_THREAD)));
-    Some(FemlBackend::new(
-        feml_backend_cpu_guid(),
-        Box::new(FemlBackendCpuImpl {}),
-        feml_backend_reg_dev_get(feml_backend_cpu_reg(), 0).unwrap(),
-        ctx,
-    ))
-}
-
-fn feml_backend_cpu_guid() -> Vec<u8> {
-    [0xaa, 0x67, 0xc7, 0x43, 0x96, 0xe6, 0xa3, 0x8a, 0xe3, 0xaf, 0xea, 0x92, 0x36, 0xbc, 0xfc, 0x89]
-        .to_vec()
-}
-
-pub struct FemlCpuBackendDeviceImpl;
+pub(crate) struct FemlCpuBackendDeviceImpl;
 
 impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
     fn get_name(&self, device: &FemlBackendDevice) -> &'static str {

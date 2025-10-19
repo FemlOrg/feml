@@ -1,3 +1,4 @@
+pub mod api;
 pub(crate) mod compute_graph;
 pub mod compute_plan;
 pub mod cpu_backend;
