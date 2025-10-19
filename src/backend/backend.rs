@@ -1,5 +1,4 @@
 use super::backend_trait::*;
-use crate::common::def::FemlGuid;
 
 pub enum FemlBackendBufferUsage {
     Any,
@@ -37,14 +36,14 @@ pub struct FemlBackendBuffer {
 pub struct FemlBackendDeviceProps {
     pub name: String,
     pub description: String,
-    pub memory_free: u64,
-    pub memory_total: u64,
+    pub free: u64,
+    pub total: u64,
     pub backend_type: FemlBackendDeviceType,
     pub caps: FemlBackendDevCaps,
 }
 
 pub struct FemlBackend {
-    pub guid: FemlGuid,
+    pub guid: Vec<u8>,
     pub interface: Box<dyn FemlBackendInterface>,
     pub device: FemlBackendDevice,
     pub context: *const u8,
@@ -74,4 +73,8 @@ impl FemlBackendBufferType {
     // fn feml_backend_buffer_is_multi_buffer(&self) -> bool {}
 
     // fn feml_backend_multi_buffer_set_usage(&self, usage: &FemlBackendBufferUsage);
+}
+
+fn feml_backend_reg_dev_get(reg: &FemlBackendReg, index: usize) -> FemlBackendDevice {
+    return reg.interface.get_device(reg, index);
 }
