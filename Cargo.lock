@@ -138,6 +138,7 @@ dependencies = [
  "anyhow",
  "ctrlc",
  "env_logger",
+ "libc",
  "log",
 ]
 

@@ -1,3 +1,5 @@
+use crate::common::def::FemlAbortCallBack;
+
 use super::thread_pool::FemlThreadPool;
 
 pub struct ComputePlan {
@@ -6,6 +8,7 @@ pub struct ComputePlan {
     pub threadpool: *mut FemlThreadPool,
     pub n_threads: i32,
 
-    // TODO: add feml abort_callback
+    abort_callback: Option<FemlAbortCallBack>,
+    abort_callback_data: *mut u8,
 }
 

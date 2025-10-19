@@ -1,4 +1,5 @@
-use crate::backend::*;
+use crate::backend::{backend::FemlBackend, *};
+use super::cpu_context::FemlBackendCpuContext;
 use std::collections::HashMap;
 
 type SetNThreadsFn = fn(backend: &mut FemlBackend, n_threads: i32);
@@ -28,8 +29,6 @@ impl BackendRegistry {
 }
 
 fn ggml_backend_cpu_set_n_threads(backend: &mut FemlBackend, n_threads: i32) {
-    let ctx = backend.context as *mut FemlBackendCpuContext;
-    unsafe {
-        (*ctx).n_threads = n_threads;
-    }
+    let ctx :&mut FemlBackendCpuContext= backend.get_context::<FemlBackendCpuContext>().unwrap();
+    ctx.n_threads = n_threads;
 }

@@ -1,4 +1,5 @@
 use super::backend::*;
+use crate::backend::cpu::compute_graph::FemlComputeGraph;
 use crate::common::tensor::FemlTensor;
 use crate::types::FemlStatus;
 
@@ -7,7 +8,11 @@ pub trait FemlBackendBufferTypeInterface {
     fn get_name(&self, buffer_type: &FemlBackendBufferType) -> *const str;
 
     // allocate a buffer of this type
-    fn alloc_buffer(&self, buffer_type: &FemlBackendBufferType, size: usize) -> FemlBackendBuffer;
+    fn alloc_buffer(
+        &self,
+        buffer_type: &FemlBackendBufferType,
+        size: usize,
+    ) -> Option<FemlBackendBuffer>;
 
     // tensor alignment
     fn get_alignment(&self, buffer_type: &FemlBackendBufferType) -> usize;
@@ -57,7 +62,7 @@ pub trait FemlBackendBufferInterface {
 pub trait FemlBackendInterface {
     fn get_name(&self, backend: &FemlBackend) -> *const str;
 
-    fn free(&self, backend: &FemlBackend);
+    fn free(&self, backend: &mut FemlBackend);
 
     // asynchronous tensor data access
     fn set_tensor_async(
@@ -89,14 +94,23 @@ pub trait FemlBackendInterface {
     // complete all pending operations (required if the backend supports async operations)
     fn synchronize(&self, backend: &FemlBackend);
 
-    // TODO: Add compute graph
-    // fn graph_plan_create(backend: &FemlBackend, compute_graph: &FemlComputeGraph);
-    // fn graph_plan_free(backend: &FemlBackend, plan: *const u8);
-    // fn graph_plan_unpdate(backend: &FemlBackend, plan: *const u8, compute_graph:& FemlComputeGraph);
-    // fn graph_plan_compute(backend: &FemlBackend, plan: *const u8) -> FemlStatus;
-    // fn graph_compute(backend: &FemlBackend, compute_graph: &FemlComputeGraph);
+    fn graph_plan_create(&self, backend: &FemlBackend, compute_graph: &FemlComputeGraph);
+
+    fn graph_plan_free(&self, backend: &FemlBackend, plan: *const u8);
+
+    fn graph_plan_unpdate(
+        &self,
+        backend: &FemlBackend,
+        plan: *const u8,
+        compute_graph: &FemlComputeGraph,
+    );
+
+    fn graph_plan_compute(&self, backend: &FemlBackend, plan: *const u8) -> FemlStatus;
+
+    fn graph_compute(&self, backend: &FemlBackend, compute_graph: &FemlComputeGraph);
 
     fn event_record(&self, backend: &FemlBackend, event: &FemlBackendEvent);
+
     fn event_wait(&self, backend: &FemlBackend, event: &FemlBackendEvent);
 }
 
@@ -116,31 +130,48 @@ fn feml_backend_buffer_copy_tensor(src: &FemlTensor, dst: &mut FemlTensor) {}
 // fn feml_backend_multi_buffer_alloc_buffer(buffers: &mut Vec<FemlBackendBuffer>, n_buffers: usize) -> FemlBackendBuffer {}
 
 pub trait FemlBackendDeviceInterface {
-    fn get_name(&self, device: &FemlBackendDevice) -> String;
+    fn get_name(&self, device: &FemlBackendDevice) -> &'static str;
+
     fn get_description(&self, device: &FemlBackendDevice) -> String;
-    fn get_memory(&self, device: &FemlBackendDevice, free: &mut i64, total: &mut i64);
+
+    fn get_memory(&self, device: &FemlBackendDevice) -> Result<(u64, u64), FemlStatus>;
+
     fn get_type(&self, device: &FemlBackendDevice) -> FemlBackendDeviceType;
+
     fn get_props(&self, device: &FemlBackendDevice, props: &mut FemlBackendDeviceProps);
+
     fn init_backend(&self, device: &FemlBackendDevice, params: &Vec<u8>);
+
     fn get_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType;
+
     fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType;
-    fn buffer_fron_host_ptr(
+
+    fn buffer_from_host_ptr(
         &self,
-        &device: FemlBackendDevice,
-        &data: Vec<u8>,
+        device: &FemlBackendDevice,
+        data: &Vec<u8>,
         max_tensor_size: usize,
-    ) -> FemlBackendBuffer;
-    fn support_op(&self, device: &FemlBackendDevice, op: &FemlTensor) -> bool;
+    ) -> Option<FemlBackendBuffer>;
+
+    fn support_op(&self, device: &FemlBackendDevice, op: &mut FemlTensor) -> bool;
+
     fn support_buft(&self, device: &FemlBackendDevice, buft: &FemlBackendBufferType) -> bool;
-    fn offload_op(&self, device: &FemlBackendDevice, op: &FemlTensor) -> bool;
+
+    fn offload_op(&self, device: &FemlBackendDevice, op: &mut FemlTensor) -> bool;
+
     fn event_new(&self, device: &FemlBackendDevice) -> FemlBackendEvent;
+
     fn event_free(&self, device: &FemlBackendDevice, event: &FemlBackendEvent);
+
     fn event_synchronize(&self, device: &FemlBackendDevice, event: &FemlBackendEvent);
 }
 
 pub trait FemlBackendRegInterface {
-    fn get_name(&self, reg: &FemlBackendReg) -> String;
+    fn get_name(&self, reg: &FemlBackendReg) -> &'static str;
+
     fn get_device_count(&self, reg: &FemlBackendReg) -> usize;
-    fn get_device(&self, reg: &FemlBackendReg, index: usize) -> FemlBackendDevice;
+
+    fn get_device(&self, reg: &FemlBackendReg, index: usize) -> Option<&FemlBackendDevice>;
+
     fn get_proc_address(&self, reg: &FemlBackendReg, name: &str) -> *const u8;
 }
