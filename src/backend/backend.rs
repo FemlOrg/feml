@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use super::backend_trait::*;
 
 pub enum FemlBackendBufferUsage {
@@ -46,24 +48,24 @@ pub struct FemlBackend {
     pub guid: Vec<u8>,
     pub interface: Box<dyn FemlBackendInterface>,
     pub device: FemlBackendDevice,
-    pub context: *const u8,
+    pub context: Option<Box<dyn Any>>,
 }
 
 pub struct FemlBackendEvent {
     pub interface: Box<dyn FemlBackendDeviceInterface>,
-    pub context: *mut u8,
+    pub context: Option<Box<dyn Any>>,
 }
 
 pub struct FemlBackendReg {
     pub interface: Box<dyn FemlBackendRegInterface>,
-    pub context: *mut u8,
+    pub context: Option<Box<dyn Any>>,
     pub api_version: i32,
 }
 
 pub struct FemlBackendDevice {
     pub interface: Box<dyn FemlBackendDeviceInterface>,
     pub reg: FemlBackendReg,
-    pub context: *mut u8,
+    pub context: Option<Box<dyn Any>>,
 }
 
 // TODO
@@ -75,6 +77,25 @@ impl FemlBackendBufferType {
     // fn feml_backend_multi_buffer_set_usage(&self, usage: &FemlBackendBufferUsage);
 }
 
-fn feml_backend_reg_dev_get(reg: &FemlBackendReg, index: usize) -> FemlBackendDevice {
-    return reg.interface.get_device(reg, index);
+fn feml_backend_reg_dev_get(reg: &FemlBackendReg, index: usize) -> Option<&FemlBackendDevice> {
+    reg.interface.get_device(reg, index)
+}
+
+impl FemlBackend {
+    pub fn new(
+        guid: Vec<u8>,
+        interface: Box<dyn FemlBackendInterface>,
+        device: FemlBackendDevice,
+        context: Option<Box<dyn Any>>,
+    ) -> Self {
+        FemlBackend { guid, interface, device, context }
+    }
+
+    pub fn set_context<T: 'static>(&mut self, context: T) {
+        self.context = Some(Box::new(context));
+    }
+
+    pub fn get_context<T: 'static>(&mut self) -> Option<&mut T> {
+        self.context.as_mut()?.downcast_mut::<T>()   
+    }
 }

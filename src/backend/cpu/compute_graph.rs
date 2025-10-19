@@ -6,7 +6,7 @@ enum FemlComputeGraphEvalOrder {
     Count,
 }
 
-struct FemlComputeGraph {
+pub(crate) struct FemlComputeGraph {
     size : i32,
     n_nodes: i32,
     n_leafs: i32,
