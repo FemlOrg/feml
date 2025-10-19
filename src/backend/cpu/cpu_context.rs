@@ -2,9 +2,9 @@ use super::thread_pool::FemlThreadPool;
 use crate::common::def::FemlAbortCallBack;
 pub(crate) struct FemlBackendCpuContext {
     pub n_threads: i32,
-    pub threadpool : *mut FemlThreadPool,
+    pub threadpool: *mut FemlThreadPool,
     pub work_data: *mut u8,
-    pub work_size : u32,
+    pub work_size: u32,
 
     pub abort_callback: Option<FemlAbortCallBack>,
     pub abort_callback_data: *mut u8,

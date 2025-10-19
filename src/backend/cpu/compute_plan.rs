@@ -11,4 +11,3 @@ pub struct ComputePlan {
     abort_callback: Option<FemlAbortCallBack>,
     abort_callback_data: *mut u8,
 }
-

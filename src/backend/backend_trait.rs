@@ -1,7 +1,9 @@
 use super::backend::*;
 use crate::backend::cpu::compute_graph::FemlComputeGraph;
+use crate::backend::cpu::cpu_register::BackendFunction;
 use crate::common::tensor::FemlTensor;
 use crate::types::FemlStatus;
+use std::rc::Rc;
 
 // use trait to implment backend dynamic polymorphism
 pub trait FemlBackendBufferTypeInterface {
@@ -142,9 +144,9 @@ pub trait FemlBackendDeviceInterface {
 
     fn init_backend(&self, device: &FemlBackendDevice, params: &Vec<u8>);
 
-    fn get_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType;
+    fn get_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType>;
 
-    fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType;
+    fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType>;
 
     fn buffer_from_host_ptr(
         &self,
@@ -159,7 +161,7 @@ pub trait FemlBackendDeviceInterface {
 
     fn offload_op(&self, device: &FemlBackendDevice, op: &mut FemlTensor) -> bool;
 
-    fn event_new(&self, device: &FemlBackendDevice) -> FemlBackendEvent;
+    fn event_new(&self, device: &FemlBackendDevice) -> Option<FemlBackendEvent>;
 
     fn event_free(&self, device: &FemlBackendDevice, event: &FemlBackendEvent);
 
@@ -171,7 +173,7 @@ pub trait FemlBackendRegInterface {
 
     fn get_device_count(&self, reg: &FemlBackendReg) -> usize;
 
-    fn get_device(&self, reg: &FemlBackendReg, index: usize) -> Option<&FemlBackendDevice>;
+    fn get_device(&self, reg: Rc<FemlBackendReg>, index: usize) -> Option<FemlBackendDevice>;
 
-    fn get_proc_address(&self, reg: &FemlBackendReg, name: &str) -> *const u8;
+    fn get_proc_address(&self, reg: &FemlBackendReg, name: &str) -> BackendFunction;
 }

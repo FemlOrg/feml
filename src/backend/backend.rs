@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::rc::Rc;
 
 use super::backend_trait::*;
 
@@ -64,7 +65,7 @@ pub struct FemlBackendReg {
 
 pub struct FemlBackendDevice {
     pub interface: Box<dyn FemlBackendDeviceInterface>,
-    pub reg: FemlBackendReg,
+    pub reg: Rc<FemlBackendReg>,
     pub context: Option<Box<dyn Any>>,
 }
 
@@ -77,8 +78,11 @@ impl FemlBackendBufferType {
     // fn feml_backend_multi_buffer_set_usage(&self, usage: &FemlBackendBufferUsage);
 }
 
-fn feml_backend_reg_dev_get(reg: &FemlBackendReg, index: usize) -> Option<&FemlBackendDevice> {
-    reg.interface.get_device(reg, index)
+pub fn feml_backend_reg_dev_get(
+    reg: Rc<FemlBackendReg>,
+    index: usize,
+) -> Option<FemlBackendDevice> {
+    reg.interface.get_device(Rc::clone(&reg), index)
 }
 
 impl FemlBackend {
@@ -96,6 +100,16 @@ impl FemlBackend {
     }
 
     pub fn get_context<T: 'static>(&mut self) -> Option<&mut T> {
-        self.context.as_mut()?.downcast_mut::<T>()   
+        self.context.as_mut()?.downcast_mut::<T>()
+    }
+}
+
+impl FemlBackendDevice {
+    pub fn new(
+        interface: Box<dyn FemlBackendDeviceInterface>,
+        reg: Rc<FemlBackendReg>,
+        context: Option<Box<dyn Any>>,
+    ) -> Self {
+        FemlBackendDevice { interface, reg: Rc::clone(&reg), context }
     }
 }

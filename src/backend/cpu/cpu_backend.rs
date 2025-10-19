@@ -2,12 +2,11 @@ use super::cpu_context::FemlBackendCpuContext;
 use crate::backend::backend::{FemlBackendDevice, FemlBackendReg};
 use crate::backend::backend_trait::{FemlBackendInterface, FemlBackendRegInterface};
 use crate::backend::cpu::compute_graph::FemlComputeGraph;
-use crate::common::def::FemlGuid;
 use crate::feml_error;
 use crate::types::FemlStatus;
 use crate::{backend::backend::FemlBackend, common::def::FEML_DEFAULT_N_THREAD};
 
-struct FemlBackendCpuImpl;
+pub struct FemlBackendCpuImpl {}
 
 impl FemlBackendInterface for FemlBackendCpuImpl {
     fn get_name(&self, backend: &FemlBackend) -> *const str {
@@ -18,9 +17,9 @@ impl FemlBackendInterface for FemlBackendCpuImpl {
         // free resources
         let ctx: &mut FemlBackendCpuContext =
             backend.get_context::<FemlBackendCpuContext>().unwrap();
-        drop(ctx.work_data);
-        drop(ctx);
-        drop(backend);
+        let _ = ctx.work_data;
+        let _ = ctx;
+        let _ = backend;
     }
 
     fn set_tensor_async(
