@@ -2,6 +2,8 @@ use super::cpu_context::FemlBackendCpuContext;
 use crate::backend::backend::{FemlBackendDevice, FemlBackendReg};
 use crate::backend::backend_trait::{FemlBackendInterface, FemlBackendRegInterface};
 use crate::backend::cpu::compute_graph::FemlComputeGraph;
+use crate::backend::cpu::cpu_backend;
+use crate::common::def::FemlGuid;
 use crate::feml_error;
 use crate::types::FemlStatus;
 use crate::{backend::backend::FemlBackend, common::def::FEML_DEFAULT_N_THREAD};
@@ -62,8 +64,8 @@ impl FemlBackendInterface for FemlBackendCpuImpl {
         feml_error!("synchronize is not implemented for CPU backend");
     }
 
-    fn graph_plan_create(&self, backend: &FemlBackend, compute_graph: &FemlComputeGraph) {
-        todo!()
+    fn graph_plan_create(&self, backend: &mut FemlBackend, compute_graph: &FemlComputeGraph) {
+        // feml_backend_cpu_graph_plan_create(backend, compute_graph);
     }
 
     fn graph_plan_free(&self, backend: &FemlBackend, plan: *const u8) {
@@ -100,11 +102,4 @@ impl FemlBackendInterface for FemlBackendCpuImpl {
         // implement event wait for CPU
         feml_error!("event_wait is not implemented for CPU backend");
     }
-}
-
-// TODO: init feml cpu init
-pub fn feml_cpu_init() {}
-
-pub fn feml_backend_cpu_init() -> Option<FemlBackend> {
-    todo!()
 }
