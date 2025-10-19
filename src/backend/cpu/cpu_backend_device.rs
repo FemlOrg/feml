@@ -1,14 +1,19 @@
 #[cfg(target_os = "linux")]
-use libc::{_SC_PAGE_SIZE, _SC_PHYS_PAGES, sysconf};
+use libc::{sysconf, _SC_PAGE_SIZE, _SC_PHYS_PAGES};
+use std::any::Any;
 
 use super::util::get_cpu_description;
 use crate::backend::backend::{
-    FemlBackendBuffer, FemlBackendBufferType, FemlBackendDevCaps, FemlBackendDevice,
-    FemlBackendDeviceProps, FemlBackendDeviceType, FemlBackendEvent, FemlBackendReg,
+    feml_backend_reg_dev_get, FemlBackend, FemlBackendBuffer, FemlBackendBufferType,
+    FemlBackendDevCaps, FemlBackendDevice, FemlBackendDeviceProps, FemlBackendDeviceType,
+    FemlBackendEvent, FemlBackendReg,
 };
 use crate::backend::backend_trait::{FemlBackendDeviceInterface, FemlBackendRegInterface};
+use crate::backend::cpu::cpu_backend::FemlBackendCpuImpl;
+use crate::backend::cpu::cpu_backend_reg_device::feml_backend_cpu_reg;
 use crate::backend::cpu::cpu_context::FemlBackendCpuContext;
-use crate::common::def::FemlGuid;
+use crate::backend::cpu::cpu_register::{BackendFunction, BackendRegistry};
+use crate::common::def::FEML_DEFAULT_N_THREAD;
 use crate::common::tensor::FemlTensor;
 use crate::types::{FemlOpType, FemlStatus};
 use crate::{backend::*, feml_abort, feml_error, utils};
@@ -17,31 +22,24 @@ fn feml_cpu_init() {
     //Todo imply feml cpu init
 }
 
-fn feml_backend_cpu_guid() -> FemlGuid {
+fn feml_backend_cpu_init() -> Option<FemlBackend> {
+    feml_cpu_init();
+    let ctx: Option<Box<dyn Any>> =
+        Some(Box::new(FemlBackendCpuContext::new(FEML_DEFAULT_N_THREAD)));
+    Some(FemlBackend::new(
+        feml_backend_cpu_guid(),
+        Box::new(FemlBackendCpuImpl {}),
+        feml_backend_reg_dev_get(feml_backend_cpu_reg(), 0).unwrap(),
+        ctx,
+    ))
+}
+
+fn feml_backend_cpu_guid() -> Vec<u8> {
     [0xaa, 0x67, 0xc7, 0x43, 0x96, 0xe6, 0xa3, 0x8a, 0xe3, 0xaf, 0xea, 0x92, 0x36, 0xbc, 0xfc, 0x89]
+        .to_vec()
 }
 
-struct FemlCpuBackendRegImpl;
-
-impl FemlBackendRegInterface for FemlCpuBackendRegImpl {
-    fn get_name(&self, reg: &FemlBackendReg) -> *const str {
-        "CPU Backend Registry"
-    }
-
-    fn get_device_count(&self, reg: &FemlBackendReg) -> usize {
-        1
-    }
-
-    fn get_device(&self, reg: &FemlBackendReg, index: usize) -> Option<&FemlBackendDevice> {
-        None
-    }
-
-    fn get_proc_address(&self, reg: &FemlBackendReg, name: &str) -> *const u8 {
-        todo!()
-    }
-}
-
-struct FemlCpuBackendDeviceImpl;
+pub struct FemlCpuBackendDeviceImpl;
 
 impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
     fn get_name(&self, device: &FemlBackendDevice) -> &'static str {
@@ -101,15 +99,15 @@ impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
     }
 
     fn init_backend(&self, dev: &FemlBackendDevice, params: &Vec<u8>) {
-        feml_cpu_init();
+        feml_backend_cpu_init();
     }
 
-    fn get_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType {
-        todo!()
+    fn get_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
+        None
     }
 
-    fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> FemlBackendBufferType {
-        todo!()
+    fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
+        None
     }
 
     fn buffer_from_host_ptr(
@@ -129,11 +127,11 @@ impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
     }
 
     fn offload_op(&self, device: &FemlBackendDevice, op: &mut FemlTensor) -> bool {
-        todo!()
+        false
     }
 
-    fn event_new(&self, device: &FemlBackendDevice) -> FemlBackendEvent {
-        todo!()
+    fn event_new(&self, device: &FemlBackendDevice) -> Option<FemlBackendEvent> {
+        None
     }
 
     fn event_free(&self, device: &FemlBackendDevice, event: &FemlBackendEvent) {}

@@ -7,7 +7,7 @@ enum FemlComputeGraphEvalOrder {
 }
 
 pub(crate) struct FemlComputeGraph {
-    size : i32,
+    size: i32,
     n_nodes: i32,
     n_leafs: i32,
 
@@ -18,6 +18,5 @@ pub(crate) struct FemlComputeGraph {
     use_counts: i32,
 
     // TODO: add FemlHashset
-
     eval_order: FemlComputeGraphEvalOrder,
 }
