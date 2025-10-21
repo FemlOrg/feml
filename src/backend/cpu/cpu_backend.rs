@@ -11,7 +11,7 @@ use crate::{backend::backend::FemlBackend, common::def::FEML_DEFAULT_N_THREAD};
 pub struct FemlBackendCpuImpl {}
 
 impl FemlBackendInterface for FemlBackendCpuImpl {
-    fn get_name(&self, backend: &FemlBackend) -> *const str {
+    fn get_name(&self, backend: &FemlBackend) -> &'static str {
         "CPU"
     }
 

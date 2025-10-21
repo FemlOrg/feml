@@ -24,14 +24,14 @@ pub struct FemlBackendDevCaps {
 
 pub struct FemlBackendBufferType {
     pub interface: Box<dyn FemlBackendBufferTypeInterface>,
-    pub device: Arc<FemlBackendDevice>,
+    pub device: Option<Arc<FemlBackendDevice>>,
     pub context: Option<Box<dyn Any>>,
 }
 
 pub struct FemlBackendBuffer {
     pub interface: Box<dyn FemlBackendBufferInterface>,
     pub buffer_type: Arc<FemlBackendBufferType>,
-    pub context: *mut u8,
+    pub context: Option<Box<dyn Any>>,
     pub size: usize,
     pub usage: FemlBackendBufferUsage,
 }
@@ -121,6 +121,49 @@ impl FemlBackendDevice {
         context: Option<Box<dyn Any>>,
     ) -> Self {
         FemlBackendDevice { interface, reg, context }
+    }
+
+    pub fn set_context<T: 'static>(&mut self, context: T) {
+        self.context = Some(Box::new(context));
+    }
+
+    pub fn get_context<T: 'static>(&mut self) -> Option<&mut T> {
+        self.context.as_mut()?.downcast_mut::<T>()
+    }
+}
+
+impl FemlBackendBufferType {
+    pub fn new(
+        interface: Box<dyn FemlBackendBufferTypeInterface>,
+        device: Option<Arc<FemlBackendDevice>>,
+        context: Option<Box<dyn Any>>,
+    ) -> Self {
+        FemlBackendBufferType { interface, device, context }
+    }
+
+    pub fn set_context<T: 'static>(&mut self, context: T) {
+        self.context = Some(Box::new(context));
+    }
+
+    pub fn get_context<T: 'static>(&mut self) -> Option<&mut T> {
+        self.context.as_mut()?.downcast_mut::<T>()
+    }
+}
+
+impl FemlBackendBuffer {
+    pub fn new(
+        interface: Box<dyn FemlBackendBufferInterface>,
+        buffer_type: Arc<FemlBackendBufferType>,
+        context: Option<Box<dyn Any>>,
+        size: usize,
+    ) -> Self {
+        FemlBackendBuffer {
+            interface,
+            buffer_type,
+            context,
+            size,
+            usage: FemlBackendBufferUsage::Any,
+        }
     }
 
     pub fn set_context<T: 'static>(&mut self, context: T) {
