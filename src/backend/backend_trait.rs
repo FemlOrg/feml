@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 // use trait to implment backend dynamic polymorphism
 pub trait FemlBackendBufferTypeInterface {
-    fn get_name(&self, buffer_type: &FemlBackendBufferType) -> *const str;
+    fn get_name(&self, buffer_type: &FemlBackendBufferType) -> &'static str;
 
     // allocate a buffer of this type
     fn alloc_buffer(
@@ -26,7 +26,8 @@ pub trait FemlBackendBufferTypeInterface {
     fn get_max_size(&self, buffer_type: &FemlBackendBufferType) -> usize;
 
     // data size needed to allocate the tensor, including padding (defaults to feml_nbytes)
-    fn get_alloc_size(&self, buffer_type: &FemlBackendBufferType, tensor: &mut FemlTensor);
+    fn get_alloc_size(&self, buffer_type: &FemlBackendBufferType, tensor: &mut FemlTensor)
+        -> usize;
 
     // check if tensor data is in host memory and uses standard ggml tensor layout (defaults to false)
     fn is_host(&self, buffer_type: &FemlBackendBufferType) -> bool;
@@ -65,7 +66,7 @@ pub trait FemlBackendBufferInterface {
 }
 
 pub trait FemlBackendInterface {
-    fn get_name(&self, backend: &FemlBackend) -> *const str;
+    fn get_name(&self, backend: &FemlBackend) -> &'static str;
 
     fn free(&self, backend: &mut FemlBackend);
 

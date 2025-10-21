@@ -1,6 +1,3 @@
-#[cfg(target_os = "linux")]
-use libc::{_SC_PAGE_SIZE, _SC_PHYS_PAGES, sysconf};
-
 use super::util::get_cpu_description;
 use crate::backend::backend::{
     FemlBackendBuffer, FemlBackendBufferType, FemlBackendDevCaps, FemlBackendDevice,
@@ -9,12 +6,17 @@ use crate::backend::backend::{
 use crate::backend::backend_trait::{FemlBackendDeviceInterface, FemlBackendRegInterface};
 use crate::backend::cpu::api::feml_backend_cpu_init;
 use crate::backend::cpu::cpu_backend::FemlBackendCpuImpl;
+use crate::backend::cpu::cpu_buffer_backend::FemlBackendCpuBuffer;
+use crate::backend::cpu::cpu_buffer_type::FemlBackendCpuBufferType;
 use crate::backend::cpu::cpu_context::FemlBackendCpuContext;
 use crate::backend::cpu::cpu_register::{BackendFunction, BackendRegistry};
-use crate::common::def::{FEML_DEFAULT_N_THREAD, FemlGuid};
+use crate::common::def::{FemlGuid, FEML_DEFAULT_N_THREAD};
 use crate::common::tensor::FemlTensor;
 use crate::types::{FemlOpType, FemlStatus};
 use crate::{backend::*, feml_abort, feml_error, utils};
+#[cfg(target_os = "linux")]
+use libc::{sysconf, _SC_PAGE_SIZE, _SC_PHYS_PAGES};
+use std::sync::Arc;
 
 pub(crate) struct FemlCpuBackendDeviceImpl;
 
@@ -80,7 +82,7 @@ impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
     }
 
     fn get_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
-        None
+        Some(FemlBackendBufferType::new(Box::new(FemlBackendCpuBufferType {}), None, None))
     }
 
     fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
@@ -93,7 +95,13 @@ impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
         data: &Vec<u8>,
         max_tensor_size: usize,
     ) -> Option<FemlBackendBuffer> {
-        todo!()
+        // Some(FemlBackendBuffer::new(
+        //     Box::new(FemlBackendCpuBuffer {}),
+        //     Arc::new(FemlBackendBufferType::new(Box::new(FemlBackendCpuBufferType {}), None, None)),
+        //     Some(Box::new(context)),
+        //     max_tensor_size,
+        // ))
+        None
     }
 
     fn support_buft(&self, device: &FemlBackendDevice, buft: &FemlBackendBufferType) -> bool {
