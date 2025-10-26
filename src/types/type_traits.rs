@@ -1,5 +1,5 @@
-use crate::types::TensorType;
 use crate::types::FEML_TYPE_COUNT;
+use crate::types::TensorType;
 
 struct FemlTypeTraits<'a> {
     type_name: &'a str,

@@ -3,34 +3,27 @@ use crate::backend::backend::{
     FemlBackendBuffer, FemlBackendBufferType, FemlBackendDevCaps, FemlBackendDevice,
     FemlBackendDeviceProps, FemlBackendDeviceType, FemlBackendEvent,
 };
-use crate::backend::backend_trait::{FemlBackendDeviceInterface, FemlBackendRegInterface};
+use crate::backend::backend_trait::FemlBackendDeviceInterface;
 use crate::backend::cpu::api::feml_backend_cpu_init;
-use crate::backend::cpu::cpu_backend::FemlBackendCpuImpl;
-use crate::backend::cpu::cpu_buffer_backend::FemlBackendCpuBuffer;
-use crate::backend::cpu::cpu_buffer_type::FemlBackendCpuBufferType;
-use crate::backend::cpu::cpu_context::FemlBackendCpuContext;
-use crate::backend::cpu::cpu_register::{BackendFunction, BackendRegistry};
-use crate::common::def::{FemlGuid, FEML_DEFAULT_N_THREAD};
+use crate::backend::cpu::cpu_buffer_type::FemlBackendCpuBufferTypeImpl;
 use crate::common::tensor::FemlTensor;
-use crate::types::{FemlOpType, FemlStatus};
-use crate::{backend::*, feml_abort, feml_error, utils};
+use crate::types::FemlStatus;
 #[cfg(target_os = "linux")]
-use libc::{sysconf, _SC_PAGE_SIZE, _SC_PHYS_PAGES};
-use std::sync::Arc;
+use libc::{_SC_PAGE_SIZE, _SC_PHYS_PAGES, sysconf};
 
 pub(crate) struct FemlCpuBackendDeviceImpl;
 
 impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
-    fn get_name(&self, device: &FemlBackendDevice) -> &'static str {
+    fn get_name(&self, _device: &FemlBackendDevice) -> &'static str {
         "CPU"
     }
 
-    fn get_description(&self, device: &FemlBackendDevice) -> String {
+    fn get_description(&self, _device: &FemlBackendDevice) -> String {
         let cpu_desc = get_cpu_description().unwrap_or_else(|_| "Unknown".to_string());
         format!("Device: CPU: {}", cpu_desc)
     }
 
-    fn get_memory(&self, device: &FemlBackendDevice) -> Result<(u64, u64), FemlStatus> {
+    fn get_memory(&self, _device: &FemlBackendDevice) -> Result<(u64, u64), FemlStatus> {
         #[cfg(target_os = "linux")]
         {
             let pages = unsafe { sysconf(_SC_PHYS_PAGES) };
@@ -52,7 +45,7 @@ impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
         }
     }
 
-    fn get_type(&self, device: &FemlBackendDevice) -> FemlBackendDeviceType {
+    fn get_type(&self, _device: &FemlBackendDevice) -> FemlBackendDeviceType {
         return FemlBackendDeviceType::CPU;
     }
 
@@ -77,23 +70,23 @@ impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
         }
     }
 
-    fn init_backend(&self, dev: &FemlBackendDevice, params: &Vec<u8>) {
+    fn init_backend(&self, _dev: &FemlBackendDevice, _params: &Vec<u8>) {
         feml_backend_cpu_init();
     }
 
-    fn get_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
-        Some(FemlBackendBufferType::new(Box::new(FemlBackendCpuBufferType {}), None, None))
+    fn get_buffer_type(&self, _device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
+        Some(FemlBackendBufferType::new(Box::new(FemlBackendCpuBufferTypeImpl {}), None, None))
     }
 
-    fn get_host_buffer_type(&self, device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
+    fn get_host_buffer_type(&self, _device: &FemlBackendDevice) -> Option<FemlBackendBufferType> {
         None
     }
 
     fn buffer_from_host_ptr(
         &self,
-        device: &FemlBackendDevice,
-        data: &Vec<u8>,
-        max_tensor_size: usize,
+        _device: &FemlBackendDevice,
+        _data: &Vec<u8>,
+        _max_tensor_size: usize,
     ) -> Option<FemlBackendBuffer> {
         // Some(FemlBackendBuffer::new(
         //     Box::new(FemlBackendCpuBuffer {}),
@@ -104,22 +97,22 @@ impl FemlBackendDeviceInterface for FemlCpuBackendDeviceImpl {
         None
     }
 
-    fn support_buft(&self, device: &FemlBackendDevice, buft: &FemlBackendBufferType) -> bool {
+    fn support_buft(&self, _device: &FemlBackendDevice, _buft: &FemlBackendBufferType) -> bool {
         todo!()
     }
-    fn support_op(&self, device: &FemlBackendDevice, op: &mut FemlTensor) -> bool {
+    fn support_op(&self, _device: &FemlBackendDevice, _op: &mut FemlTensor) -> bool {
         todo!()
     }
 
-    fn offload_op(&self, device: &FemlBackendDevice, op: &mut FemlTensor) -> bool {
+    fn offload_op(&self, _device: &FemlBackendDevice, _op: &mut FemlTensor) -> bool {
         false
     }
 
-    fn event_new(&self, device: &FemlBackendDevice) -> Option<FemlBackendEvent> {
+    fn event_new(&self, _device: &FemlBackendDevice) -> Option<FemlBackendEvent> {
         None
     }
 
-    fn event_free(&self, device: &FemlBackendDevice, event: &FemlBackendEvent) {}
+    fn event_free(&self, _device: &FemlBackendDevice, _event: &FemlBackendEvent) {}
 
-    fn event_synchronize(&self, device: &FemlBackendDevice, event: &FemlBackendEvent) {}
+    fn event_synchronize(&self, _device: &FemlBackendDevice, _event: &FemlBackendEvent) {}
 }

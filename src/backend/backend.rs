@@ -1,4 +1,5 @@
 use super::backend_trait::*;
+use crate::common::context;
 use crate::common::def::FemlGuid;
 use std::any::Any;
 use std::sync::Arc;
@@ -66,15 +67,6 @@ pub struct FemlBackendDevice {
     pub interface: Box<dyn FemlBackendDeviceInterface>,
     pub reg: Arc<FemlBackendReg>,
     pub context: Option<Box<dyn Any>>,
-}
-
-// TODO
-impl FemlBackendBufferType {
-    // fn feml_backend_buffer_init(&self, interface: Box<dyn FemlBackendBufferInterface>, context: *mut u8, size: usize) -> FemlBackendBufferType{}
-
-    // fn feml_backend_buffer_is_multi_buffer(&self) -> bool {}
-
-    // fn feml_backend_multi_buffer_set_usage(&self, usage: &FemlBackendBufferUsage);
 }
 
 impl FemlBackend {
@@ -153,13 +145,13 @@ impl FemlBackendBufferType {
 impl FemlBackendBuffer {
     pub fn new(
         interface: Box<dyn FemlBackendBufferInterface>,
-        buffer_type: Arc<FemlBackendBufferType>,
+        buffer_type: &Arc<FemlBackendBufferType>,
         context: Option<Box<dyn Any>>,
         size: usize,
     ) -> Self {
         FemlBackendBuffer {
             interface,
-            buffer_type,
+            buffer_type: buffer_type.clone(),
             context,
             size,
             usage: FemlBackendBufferUsage::Any,
@@ -173,4 +165,14 @@ impl FemlBackendBuffer {
     pub fn get_context<T: 'static>(&mut self) -> Option<&mut T> {
         self.context.as_mut()?.downcast_mut::<T>()
     }
+}
+
+pub(crate) fn feml_backend_buffer_init(
+    buft: Arc<FemlBackendBufferType>,
+    interface: &mut Option<Box<dyn FemlBackendBufferInterface>>,
+    context: Option<Box<dyn Any>>,
+    size: usize,
+) -> FemlBackendBuffer {
+    let iface = interface.take().expect("interface must be name");
+    FemlBackendBuffer::new(iface, &buft, context, size)
 }
