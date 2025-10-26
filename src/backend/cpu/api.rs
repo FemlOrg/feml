@@ -6,7 +6,7 @@ use crate::backend::api::feml_backend_reg_dev_get;
 use crate::backend::backend::{FemlBackend, FemlBackendReg};
 use crate::backend::cpu::cpu_backend::FemlBackendCpuImpl;
 use crate::backend::cpu::cpu_context::FemlBackendCpuContext;
-use crate::common::def::{FemlGuid, FEML_BACKEND_API_VERION, FEML_DEFAULT_N_THREAD};
+use crate::common::def::{FEML_BACKEND_API_VERION, FEML_DEFAULT_N_THREAD, FemlGuid};
 use once_cell::sync::Lazy;
 
 // TODO: init feml cpu init

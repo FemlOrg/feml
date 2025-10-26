@@ -1,4 +1,3 @@
-use core::sync;
 use std::sync::Arc;
 
 use super::backend::*;
@@ -6,7 +5,6 @@ use crate::backend::cpu::compute_graph::FemlComputeGraph;
 use crate::backend::cpu::cpu_register::BackendFunction;
 use crate::common::tensor::FemlTensor;
 use crate::types::FemlStatus;
-use std::rc::Rc;
 
 // use trait to implment backend dynamic polymorphism
 pub trait FemlBackendBufferTypeInterface {
@@ -15,7 +13,7 @@ pub trait FemlBackendBufferTypeInterface {
     // allocate a buffer of this type
     fn alloc_buffer(
         &self,
-        buffer_type: &FemlBackendBufferType,
+        buffer_type: &Arc<FemlBackendBufferType>,
         size: usize,
     ) -> Option<FemlBackendBuffer>;
 
@@ -27,7 +25,7 @@ pub trait FemlBackendBufferTypeInterface {
 
     // data size needed to allocate the tensor, including padding (defaults to feml_nbytes)
     fn get_alloc_size(&self, buffer_type: &FemlBackendBufferType, tensor: &mut FemlTensor)
-        -> usize;
+    -> usize;
 
     // check if tensor data is in host memory and uses standard ggml tensor layout (defaults to false)
     fn is_host(&self, buffer_type: &FemlBackendBufferType) -> bool;
@@ -35,20 +33,41 @@ pub trait FemlBackendBufferTypeInterface {
 
 pub trait FemlBackendBufferInterface {
     // free the buffer
-    fn free_buffer(&self, buffer: &FemlBackendBuffer);
+    fn free_buffer(&self, buffer: &mut FemlBackendBuffer);
 
     // base address of the buffer
-    fn get_base(&self, buffer: &FemlBackendBuffer);
+    fn get_base(&self, buffer: &mut FemlBackendBuffer) -> *mut u8;
 
     // initialize a tensor in the buffer (eg. add tensor extras)
     fn init_tensor(&self, buffer: &FemlBackendBuffer, tensor: &mut FemlTensor) -> FemlStatus;
 
     // tensor data access
-    fn memset_tensor(&self, buffer: &FemlBackendBuffer, tensor: &mut FemlTensor);
+    fn memset_tensor(
+        &self,
+        buffer: &FemlBackendBuffer,
+        tensor: &mut FemlTensor,
+        value: u8,
+        offset: usize,
+        size: usize,
+    );
 
-    fn set_tensor(&self, buffer: &FemlBackendBuffer, tensor: &mut FemlTensor);
+    fn set_tensor(
+        &self,
+        buffer: &FemlBackendBuffer,
+        tensor: &mut FemlTensor,
+        data: *const u8,
+        offset: usize,
+        size: usize,
+    );
 
-    fn get_tensor(&self, buffer: &FemlBackendBuffer, tensor: &mut FemlTensor);
+    fn get_tensor(
+        &self,
+        buffer: &FemlBackendBuffer,
+        tensor: &mut FemlTensor,
+        data: *mut u8,
+        offset: usize,
+        size: usize,
+    );
 
     // (optional) tensor copy: dst is in the buffer, src may be in any buffer, including buffers from a different backend (return false if not supported)
     fn cpy_tensor(
@@ -59,7 +78,7 @@ pub trait FemlBackendBufferInterface {
     ) -> bool;
 
     // clear the entire buffer
-    fn clear(&self, buffer: &FemlBackendBuffer, value: u8);
+    fn clear(&self, buffer: &mut FemlBackendBuffer, value: u8);
 
     // (optional) reset any internal state due to tensor initialization, such as tensor extras
     fn reset(&self, buffer: &FemlBackendBuffer);
@@ -119,12 +138,6 @@ pub trait FemlBackendInterface {
 
     fn event_wait(&self, backend: &FemlBackend, event: &FemlBackendEvent);
 }
-
-// TODO
-fn feml_backend_buffer_copy_tensor(src: &FemlTensor, dst: &mut FemlTensor) {}
-
-// TODO
-// fn feml_backend_multi_buffer_alloc_buffer(buffers: &mut Vec<FemlBackendBuffer>, n_buffers: usize) -> FemlBackendBuffer {}
 
 pub trait FemlBackendDeviceInterface {
     fn get_name(&self, device: &FemlBackendDevice) -> &'static str;
