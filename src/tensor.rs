@@ -1,3 +1,9 @@
+use crate::context::Context;
+use crate::data_type::DataType;
+use crate::memory_manager::MemoryBlock;
+use crate::shape::Shape;
+use std::sync::Arc;
+
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TensorId(usize);
@@ -13,4 +19,22 @@ impl TensorId {
 
 pub struct Tensor_ {
     id: TensorId,
+    name: String,
+    dtype: DataType,
+    shape: Shape,
+    storage: Option<Arc<MemoryBlock>>,
+    context: Context,
+}
+
+impl Tensor_ {
+    pub fn new(
+        name: String,
+        dtype: DataType,
+        shape: Shape,
+        storage: Option<Arc<MemoryBlock>>,
+        context: Context,
+        size: usize,
+    ) -> Self {
+        Self { id: TensorId::new(), name, dtype, shape, storage, context }
+    }
 }

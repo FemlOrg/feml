@@ -1,15 +1,15 @@
+use crate::compute_graph::{ComputeGraph, GraphId};
+use crate::data_type::DataType;
+use crate::memory_manager::MemoryManager;
+use crate::shape::Shape;
+use crate::tensor::{TensorId, Tensor_};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::memory_manager::MemoryManager;
-use crate::tensor::{TensorId, Tensor_};
-use crate::compute_graph::{GraphId, ComputeGraph};
-use crate::shape::Shape;
-use crate::data_type::DataType;
 
 pub struct Context_ {
-  memory_manager: Arc<MemoryManager>,
-  pub tensor_tables: HashMap<TensorId, Tensor_>,
-  pub graph_tables: HashMap<GraphId, ComputeGraph>,
+    memory_manager: Arc<MemoryManager>,
+    pub tensor_tables: HashMap<TensorId, Tensor_>,
+    pub graph_tables: HashMap<GraphId, ComputeGraph>,
 }
 pub struct Context(Arc<Context_>);
 
@@ -20,11 +20,11 @@ impl AsRef<Context> for Context {
 }
 
 impl std::ops::Deref for Context {
-  type Target = Context_;
+    type Target = Context_;
 
-  fn deref(&self) -> &Self::Target {
-      self.0.as_ref()
-  }
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
 }
 
 impl Context_ {
@@ -33,16 +33,16 @@ impl Context_ {
             memory_manager: MemoryManager::new(*size, 0),
             tensor_tables: HashMap::new(),
             graph_tables: HashMap::new(),
-        }.into()
+        }
+        .into()
     }
 
     pub fn new_tensor(self: &Self, dtype: DataType, shape: &Shape) -> Result<Tensor> {
-      todo!();
+        todo!();
     }
 
     // TODO
     pub fn new_graph(self: &Self) -> Result<ComputeGraph> {
-      todo!();
+        todo!();
     }
 }
-

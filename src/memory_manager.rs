@@ -1,4 +1,4 @@
-use std::alloc::{Layout, alloc, dealloc};
+use std::alloc::{alloc, dealloc, Layout};
 use std::fmt;
 use std::ptr;
 use std::sync::{Arc, Mutex, Weak};
@@ -16,8 +16,8 @@ impl Drop for Region {
     fn drop(&mut self) {
         if !self.ptr.is_null() {
             unsafe {
-                let layout = Layout::from_size_align(self.size, size_of::<u8>())
-                    .expect("Invalid layout");
+                let layout =
+                    Layout::from_size_align(self.size, size_of::<u8>()).expect("Invalid layout");
                 dealloc(self.ptr, layout);
             }
         }
@@ -83,7 +83,8 @@ impl MemoryManager {
             default_page_size: initial_size,
         };
 
-        let mgr = Arc::new(Self { inner: Mutex::new(state), size_compare_ratios: size_compare_ratio });
+        let mgr =
+            Arc::new(Self { inner: Mutex::new(state), size_compare_ratios: size_compare_ratio });
 
         mgr.expand_heap_internal(initial_size);
 
@@ -102,13 +103,13 @@ impl MemoryManager {
 
         // Allocate memory using `std::alloc::alloc`
         let new_ptr = unsafe {
-            let layout = Layout::from_size_align(alloc_size, size_of::<u8>())
-                .expect("Invalid layout");
+            let layout =
+                Layout::from_size_align(alloc_size, size_of::<u8>()).expect("Invalid layout");
             let ptr = alloc(layout) as *mut u8;
             if ptr.is_null() {
                 panic!("System Out of Memory: failed to allocate {} bytes", alloc_size);
             }
-            ptr::write_bytes(ptr, 0, alloc_size);  // Initialize the allocated memory to zero.
+            ptr::write_bytes(ptr, 0, alloc_size); // Initialize the allocated memory to zero.
             ptr
         };
 
@@ -276,9 +277,9 @@ pub struct MemoryBlock {
     /// The ID of the region.
     pub region_id: usize,
     /// The start address of the memory block.
-    pub start: usize,  
+    pub start: usize,
     /// The length of the memory block.
-    pub len: usize,     
+    pub len: usize,
     /// Weak reference to the memory manager for deallocation.
     manager: Weak<MemoryManager>,
 }
