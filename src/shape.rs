@@ -1,0 +1,1 @@
+pub struct Shape(pub [usize; 4]);
