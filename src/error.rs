@@ -21,7 +21,6 @@ use std::fmt;
 #[derive(Debug)]
 pub enum ErrorKind {
     // ===== DataType =====
-
     /// Error raised when an unexpected data type is encountered.
     ///
     /// @brief Unexpected data type error.
@@ -38,7 +37,6 @@ pub enum ErrorKind {
     UnsupportedDataTypeForOp { dtype: DataType, op: &'static str },
 
     // ===== Shape =====
-
     /// Error raised when a tensor has an unexpected number of dimensions.
     ///
     /// @brief Unexpected number of dimensions error.
@@ -48,7 +46,6 @@ pub enum ErrorKind {
     UnexpectedNumberOfDims { expected: usize, got: usize, shape: Shape },
 
     // ===== Infra =====
-
     /// I/O error wrapper.
     ///
     /// @brief I/O operation error.
@@ -62,7 +59,6 @@ pub enum ErrorKind {
     ParseInt(std::num::ParseIntError),
 
     // ===== Runtime =====
-
     /// Generic error message.
     ///
     /// @brief Generic runtime error message.
@@ -312,9 +308,7 @@ mod tests {
     // Test Error::context() - chain multiple contexts
     #[test]
     fn test_error_context() {
-        let err = Error::msg("base error")
-            .context("first context")
-            .context("second context");
+        let err = Error::msg("base error").context("first context").context("second context");
 
         assert_eq!(err.context.len(), 2);
         assert_eq!(err.context[0], "first context");
@@ -356,10 +350,7 @@ mod tests {
     // Test Display for UnsupportedDataTypeForOp
     #[test]
     fn test_display_unsupported_dtype() {
-        let kind = ErrorKind::UnsupportedDataTypeForOp {
-            dtype: DataType::F16,
-            op: "conv2d",
-        };
+        let kind = ErrorKind::UnsupportedDataTypeForOp { dtype: DataType::F16, op: "conv2d" };
         let s = format!("{kind}");
         assert!(s.contains("F16") || s.contains("conv2d"));
         assert!(s.contains("unsupported"));
@@ -369,11 +360,7 @@ mod tests {
     #[test]
     fn test_display_unexpected_dims() {
         let shape = Shape([1, 3, 224, 224]);
-        let kind = ErrorKind::UnexpectedNumberOfDims {
-            expected: 3,
-            got: 4,
-            shape,
-        };
+        let kind = ErrorKind::UnexpectedNumberOfDims { expected: 3, got: 4, shape };
         let s = format!("{kind}");
         assert!(s.contains("unexpected rank"));
         assert!(s.contains("expected: 3"));
