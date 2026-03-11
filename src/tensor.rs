@@ -1,6 +1,8 @@
+use crate::context::Context;
 use crate::data_type::{DataType, TensorOpType, TensorType};
 use crate::memory_manager::MemoryBlock;
 use crate::shape::Shape;
+use crate::layout::Layout;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -9,36 +11,36 @@ use std::sync::Arc;
 pub struct TensorId(usize);
 
 impl TensorId {
-    fn new() -> Self {
+    pub fn new() -> Self {
         // https://users.rust-lang.org/t/idiomatic-rust-way-to-generate-unique-id/33805
         use std::sync::atomic;
         static COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(1);
         Self(COUNTER.fetch_add(1, atomic::Ordering::Relaxed))
     }
 }
-#[derive(Clone)]
 pub struct Tensor_ {
-    id: TensorId,
-    name: String,
-    dtype: DataType,
-    shape: Shape,
-    storage: Option<Arc<MemoryBlock>>,
-    src_tensor: Vec<Tensor>,
-    length: usize,
-    tensor_type: TensorType,
-    view_offs: usize,
-    op_type: TensorOpType,
+    pub id: TensorId,
+    pub name: String,
+    pub dtype: DataType,
+    pub layout: Layout,
+    pub storage: Option<Arc<MemoryBlock>>,
+    pub src_tensor: Vec<Tensor>,
+    pub length: usize,
+    pub tensor_type: TensorType,
+    pub view_offs: usize,
+    pub op_type: TensorOpType,
 }
 
 #[derive(Clone)]
-pub struct Tensor(Arc<RefCell<Tensor_>>);
+pub struct Tensor(pub Arc<RefCell<Tensor_>>);
+
 impl Tensor_ {
     pub fn default() -> Self {
         Self {
             id: TensorId::new(),
             name: String::new(),
             dtype: DataType::U8,
-            shape: Shape::default(),
+            layout: Layout::default(),
             storage: None,
             src_tensor: Vec::new(),
             length: 0,
@@ -72,12 +74,12 @@ impl Tensor_ {
     }
 
     pub fn set_shape(&mut self, shape: Shape) -> &mut Self {
-        self.shape = shape;
+        self.layout.shape = shape;
         self
     }
 
     pub fn get_shape(&self) -> &Shape {
-        &self.shape
+        &self.layout.shape
     }
 
     pub fn set_length(&mut self, length: usize) -> &mut Self {
@@ -434,16 +436,16 @@ mod tests {
 
     #[test]
     fn test_get_size() {
-        use crate::data_type::get_size;
+        use crate::data_type::get_type_size;
 
-        assert_eq!(get_size(DataType::U8), 1);
-        assert_eq!(get_size(DataType::U32), 4);
-        assert_eq!(get_size(DataType::I16), 2);
-        assert_eq!(get_size(DataType::I32), 8);
-        assert_eq!(get_size(DataType::I64), 16);
-        assert_eq!(get_size(DataType::F16), 2);
-        assert_eq!(get_size(DataType::F32), 4);
-        assert_eq!(get_size(DataType::F64), 8);
+        assert_eq!(get_type_size(DataType::U8), 1);
+        assert_eq!(get_type_size(DataType::U32), 4);
+        assert_eq!(get_type_size(DataType::I16), 2);
+        assert_eq!(get_type_size(DataType::I32), 4);
+        assert_eq!(get_type_size(DataType::I64), 8);
+        assert_eq!(get_type_size(DataType::F16), 2);
+        assert_eq!(get_type_size(DataType::F32), 4);
+        assert_eq!(get_type_size(DataType::F64), 8);
     }
 
     #[test]

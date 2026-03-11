@@ -6,3 +6,4 @@ mod memory_manager;
 pub mod shape;
 pub mod tensor;
 mod error;
+mod object_pool;
