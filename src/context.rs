@@ -55,7 +55,7 @@ impl Context_ {
         tensor_.layout.stride[1] =
             tensor_.layout.stride[0] * (tensor_.layout.stride[0] / get_block_size(dtype));
         for i in 2..4 {
-            tensor_.layout.stride[i] = tensor_.layout.stride[i - 1] * shape.dims[i - 1];
+            tensor_.layout.stride[i] = tensor_.layout.stride[i - 1] * tensor_.layout.shape.0[i - 1];
         }
         let tensor = Tensor(Arc::new(RefCell::new(tensor_)));
         self.tensor_tables.insert(tensor.borrow().id, tensor.clone());
