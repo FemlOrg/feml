@@ -19,19 +19,32 @@ pub enum DataType {
     F64,
 }
 
-pub fn get_size(dtype: DataType) -> usize {
-    match dtype {
-        DataType::U8 => 1,
-        DataType::U32 => 4,
-        DataType::I16 => 2,
-        DataType::I32 => 8,
-        DataType::I64 => 16,
-        DataType::F16 => 2,
-        DataType::F32 => 4,
-        DataType::F64 => 8,
-        _ => panic!("Invalid data type"),
-    }
+pub struct DataTypeTraits {
+    pub name: &'static str,
+    pub block_size: usize,
+    pub type_size: usize,
+    pub quantized: bool,
 }
+
+static DATA_TYPE_TRAITS: [DataTypeTraits; 8] = [
+    DataTypeTraits { name: "U8", block_size: 1, type_size: 1, quantized: true },
+    DataTypeTraits { name: "U32", block_size: 4, type_size: 4, quantized: true },
+    DataTypeTraits { name: "I16", block_size: 2, type_size: 2, quantized: true },
+    DataTypeTraits { name: "I32", block_size: 4, type_size: 4, quantized: true },
+    DataTypeTraits { name: "I64", block_size: 8, type_size: 8, quantized: true },
+    DataTypeTraits { name: "F16", block_size: 2, type_size: 2, quantized: false },
+    DataTypeTraits { name: "F32", block_size: 4, type_size: 4, quantized: false },
+    DataTypeTraits { name: "F64", block_size: 8, type_size: 8, quantized: false },
+];
+
+pub fn get_type_size(dtype: DataType) -> usize {
+    DATA_TYPE_TRAITS[dtype as usize].type_size
+}
+
+pub fn get_block_size(dtype: DataType) -> usize {
+    DATA_TYPE_TRAITS[dtype as usize].block_size
+}
+
 /// The different types of tensors.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum TensorType {
