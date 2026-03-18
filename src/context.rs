@@ -186,4 +186,83 @@ impl Context {
     pub fn new_graph(self: &Self) -> Result<ComputeGraph> {
         todo!();
     }
+
+    /// Creates a new context with the specified tensor pool capacity.
+    pub fn new(size: usize) -> Self {
+        Context(Arc::new(RefCell::new(Context_::new(&size).unwrap())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data_type::DataType;
+    use crate::shape::Shape;
+
+    #[test]
+    fn test_context_new() {
+        let ctx = Context::new(10);
+        assert_eq!(ctx.borrow().tensor_tables.len(), 0);
+        assert_eq!(ctx.borrow().graph_tables.len(), 0);
+    }
+
+    #[test]
+    fn test_new_tensor_success() {
+        let mut ctx = Context::new(10);
+        let shape = Shape([2, 3, 4, 5]);
+        let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
+        assert_eq!(tensor.borrow().dtype, DataType::F32);
+        assert_eq!(tensor.borrow().layout.shape, shape);
+        assert!(ctx.borrow().tensor_tables.contains_key(&tensor.borrow().id));
+    }
+
+    #[test]
+    fn test_new_tensor_zero_dimension() {
+        let mut ctx = Context::new(10);
+        let shape = Shape([0, 3, 4, 5]);
+        let result = ctx.new_tensor(DataType::F32, &shape);
+        assert!(result.is_err());
+        assert!(result.err().unwrap().to_string().contains("zero dimensions"));
+    }
+
+    #[test]
+    fn test_new_tensor_unsupported_dtype() {
+        let mut ctx = Context::new(10);
+        let shape = Shape([2, 3, 4, 5]);
+        let result = ctx.new_tensor(DataType::U8, &shape);
+        assert!(result.is_err());
+        assert!(result.err().unwrap().to_string().contains("unsupported dtype"));
+    }
+
+    #[test]
+    fn test_new_tensor_view_success() {
+        let mut ctx = Context::new(10);
+        let shape = Shape([2, 3, 4, 5]);
+        let src_tensor = ctx.new_tensor(DataType::I32, &shape).unwrap();
+        let view_tensor = ctx.new_tensor_view(src_tensor.clone()).unwrap();
+        assert_eq!(view_tensor.borrow().dtype, DataType::I32);
+        assert_eq!(view_tensor.borrow().layout.shape, shape);
+        for i in 0..4 {
+            assert_eq!(view_tensor.borrow().layout.stride[i], src_tensor.borrow().layout.stride[i]);
+        }
+        assert!(ctx.borrow().tensor_tables.contains_key(&view_tensor.borrow().id));
+    }
+
+    #[test]
+    fn test_new_tensor_view_invalid_source() {
+        let mut ctx = Context::new(10);
+        let mut other_ctx = Context::new(10);
+        let shape = Shape([2, 3, 4, 5]);
+        let src_tensor = other_ctx.new_tensor(DataType::F32, &shape).unwrap();
+        let result = ctx.new_tensor_view(src_tensor);
+        assert!(result.is_err());
+        assert!(result.err().unwrap().to_string().contains("view source tensor not found"));
+    }
+
+    #[test]
+    #[should_panic(expected = "not yet implemented")]
+    fn test_new_graph_panics() {
+        let ctx = Context::new(10);
+        let _ = ctx.new_graph();
+    }
 }

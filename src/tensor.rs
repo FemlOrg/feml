@@ -1,11 +1,11 @@
 use crate::context::Context;
-use crate::data_type::{DataType, TensorOpType, TensorType};
+use crate::data_type::{ DataType, TensorOpType, TensorType };
 use crate::memory_manager::MemoryBlock;
 use crate::shape::Shape;
 use crate::layout::Layout;
 use std::cell::RefCell;
 use std::sync::Arc;
-use crate::error::Result;
+use crate::error::{Error, ErrorKind, Result};
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TensorId(usize);
@@ -125,7 +125,7 @@ impl Tensor_ {
         self
     }
 
-    pub fn get_data(&self) -> Result<*mut u8, String> {
+    pub fn get_data(&self) -> Result<*mut u8> {
         // self.storage
         //     .as_ref()
         //     .ok_or("Tensor storage is None".to_string())
@@ -250,9 +250,11 @@ mod tests {
         tensor.set_length(100);
         assert_eq!(tensor.get_length(), 100);
 
-        for op_type in
-            [TensorOpType::UNKNOWN, TensorOpType::TensorOpView, TensorOpType::TensorOpMul]
-        {
+        for op_type in [
+            TensorOpType::UNKNOWN,
+            TensorOpType::TensorOpView,
+            TensorOpType::TensorOpMul,
+        ] {
             tensor.set_op_type(op_type);
             assert_eq!(tensor.get_op_type(), &op_type);
         }
@@ -445,7 +447,7 @@ mod tests {
         ];
 
         for i in 0..types.len() {
-            for j in (i + 1)..types.len() {
+            for j in i + 1..types.len() {
                 assert_ne!(types[i], types[j]);
             }
         }
