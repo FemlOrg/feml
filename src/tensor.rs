@@ -5,7 +5,7 @@ use crate::shape::Shape;
 use crate::layout::Layout;
 use std::cell::RefCell;
 use std::sync::Arc;
-
+use crate::error::Result;
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TensorId(usize);
@@ -29,6 +29,7 @@ pub struct Tensor_ {
     pub tensor_type: TensorType,
     pub view_offs: usize,
     pub op_type: TensorOpType,
+    context: Option<Context>,
 }
 
 #[derive(Clone)]
@@ -47,6 +48,7 @@ impl Tensor_ {
             tensor_type: TensorType::UNKNOWN,
             view_offs: 0,
             op_type: TensorOpType::UNKNOWN,
+            context: None,
         }
     }
 
@@ -118,6 +120,11 @@ impl Tensor_ {
         &self.op_type
     }
 
+    pub fn set_context(&mut self, context: Context) -> &mut Self {
+        self.context = Some(context);
+        self
+    }
+
     pub fn get_data(&self) -> Result<*mut u8, String> {
         // self.storage
         //     .as_ref()
@@ -127,6 +134,20 @@ impl Tensor_ {
 }
 
 impl Tensor {
+    fn mul_impl(&self, other: &Tensor, inplace: bool) -> Result<Tensor> {
+        let mut tensor_ = Tensor_::default();
+        tensor_.set_op_type(TensorOpType::TensorOpMul);
+        tensor_.set_src_tensor(vec![self.clone(), other.clone()]);
+
+        // Inherit storage from source tensors if possible
+        for src in tensor_.get_src_tensor() {
+            if src.borrow().storage.is_none() {
+                return Err("Source tensor has no storage".to_string());
+            }
+        }
+        Ok(Tensor(Arc::new(RefCell::new(tensor_))))
+    }
+
     pub fn mul(&self, other: &Tensor) -> Tensor {
         let mut tensor = Tensor_::default();
         tensor.set_op_type(TensorOpType::TensorOpMul);
