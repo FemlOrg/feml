@@ -7,3 +7,4 @@ pub mod shape;
 pub mod tensor;
 pub mod error;
 mod object_pool;
+mod defs;

@@ -158,20 +158,20 @@ impl Context {
     /// @param shape The shape (dimensions) of the tensor.
     /// @return Result containing the new tensor or an error.
     pub fn new_tensor(self: &mut Self, dtype: DataType, shape: &Shape) -> Result<Tensor> {
-        let tensor = self.0.borrow_mut().new_tensor_impl(dtype, shape, None)?;
-        tensor.borrow_mut().set_context(self.clone());
+        let mut tensor = self.borrow_mut().new_tensor_impl(dtype, shape, None)?;
+        tensor.set_context(self.clone());
         Ok(tensor)
     }
 
     pub fn new_tensor_view(self: &mut Self, view_src: Tensor) -> Result<Tensor> {
-        let tensor = self.0
+        let mut tensor = self.0
             .borrow_mut()
             .new_tensor_impl(
                 view_src.borrow().dtype,
                 &view_src.borrow().layout.shape,
                 Some(view_src.clone())
             )?;
-        tensor.borrow_mut().set_context(self.clone());
+        tensor.set_context(self.clone());
 
         for i in 0..4 {
             tensor.borrow_mut().layout.stride[i] = view_src.borrow().layout.stride[i];
