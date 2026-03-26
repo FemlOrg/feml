@@ -5,5 +5,6 @@ pub mod layout;
 mod memory_manager;
 pub mod shape;
 pub mod tensor;
-mod error;
+pub mod error;
 mod object_pool;
+mod defs;

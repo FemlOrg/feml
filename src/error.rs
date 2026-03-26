@@ -27,14 +27,21 @@ pub enum ErrorKind {
     /// @param msg Error message describing the context.
     /// @param expected The data type that was expected.
     /// @param got The actual data type that was received.
-    UnexpectedDType { msg: &'static str, expected: DataType, got: DataType },
+    UnexpectedDType {
+        msg: &'static str,
+        expected: DataType,
+        got: DataType,
+    },
 
     /// Error raised when a data type is not supported for a specific operation.
     ///
     /// @brief Unsupported data type for operation.
     /// @param dtype The data type that is not supported.
     /// @param op The operation name for which the dtype is unsupported.
-    UnsupportedDataTypeForOp { dtype: DataType, op: &'static str },
+    UnsupportedDataTypeForOp {
+        dtype: DataType,
+        op: &'static str,
+    },
 
     // ===== Shape =====
     /// Error raised when a tensor has an unexpected number of dimensions.
@@ -43,7 +50,11 @@ pub enum ErrorKind {
     /// @param expected The expected number of dimensions (rank).
     /// @param got The actual number of dimensions received.
     /// @param shape The shape of the tensor that caused the error.
-    UnexpectedNumberOfDims { expected: usize, got: usize, shape: Shape },
+    UnexpectedNumberOfDims {
+        expected: usize,
+        got: usize,
+        shape: Shape,
+    },
 
     // ===== Infra =====
     /// I/O error wrapper.
@@ -79,6 +90,7 @@ pub enum ErrorKind {
 ///
 /// @example
 /// ```rust
+/// # use feml::error::Error;
 /// let err = Error::msg("file operation failed")
 ///     .context("while loading tensor")
 ///     .with_path("/data/tensor.bin");
@@ -113,6 +125,7 @@ impl Error {
     ///
     /// @example
     /// ```rust
+    /// # use feml::error::Error;
     /// let err1 = Error::msg("something went wrong");
     /// let err2 = Error::msg(String::from("owned message"));
     /// ```
@@ -131,6 +144,7 @@ impl Error {
     ///
     /// @example
     /// ```rust
+    /// # use feml::error::Error;
     /// let err = Error::msg("base error")
     ///     .context("in tensor creation")
     ///     .context("during model initialization");
@@ -148,6 +162,7 @@ impl Error {
     ///
     /// @example
     /// ```rust
+    /// # use feml::error::Error;
     /// let err = Error::msg("file not found").with_path("/data/weights.bin");
     /// ```
     pub fn with_path(mut self, p: impl Into<std::path::PathBuf>) -> Self {
