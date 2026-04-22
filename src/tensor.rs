@@ -18,6 +18,10 @@ impl TensorId {
         static COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(1);
         Self(COUNTER.fetch_add(1, atomic::Ordering::Relaxed))
     }
+
+    pub fn as_usize(&self) -> usize {
+        self.0
+    }
 }
 
 struct TensorIdArray {
