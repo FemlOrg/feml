@@ -6,6 +6,7 @@
 
 use crate::compute_graph::{ ComputeGraph, GraphId };
 use crate::data_type::{ DataType, get_block_size, get_type_size };
+use crate::defs::MAX_DIMS;
 use crate::object_pool::ObjectPool;
 use crate::shape::Shape;
 use crate::tensor::{ self, Tensor, Tensor_, TensorId };
@@ -173,10 +174,17 @@ impl Context {
             )?;
         tensor.set_context(self.clone());
 
-        for i in 0..4 {
+        for i in 0..MAX_DIMS {
             tensor.borrow_mut().layout.stride[i] = view_src.borrow().layout.stride[i];
         }
         Ok(tensor)
+    }
+
+    /// Creates a new tensor by duplicating the shape and data type of an existing tensor.
+    /// This method is a convenience wrapper around `new_tensor` that extracts the necessary
+    /// information from the source tensor.
+    pub fn dup_tensor(self: &mut Self, src: Tensor) -> Result<Tensor> {
+        self.new_tensor(src.get_dtype(), &src.get_shape())
     }
 
     /// Creates a new compute graph.
