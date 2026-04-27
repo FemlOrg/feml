@@ -6,7 +6,7 @@ use crate::layout::Layout;
 use std::cell::RefCell;
 use std::sync::Arc;
 use crate::error::{ Error, ErrorKind, Result };
-use crate::defs::{MAX_DIMS, MAX_SRC};
+use crate::defs::{ MAX_DIMS, MAX_SRC };
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TensorId(usize);
@@ -20,12 +20,12 @@ impl TensorId {
     }
 }
 
-struct TensorArray {
+struct TensorIdArray {
     arr: [TensorId; MAX_SRC],
     len: usize,
 }
 
-impl TensorArray {
+impl TensorIdArray {
     pub(crate) fn new() -> Self {
         Self { arr: [TensorId(0); MAX_SRC], len: 0 }
     }
@@ -34,17 +34,24 @@ impl TensorArray {
         self.len
     }
 
-    pub fn set_tensor(&mut self, tensor_id: TensorId) {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.len = 0;
+    }
+
+    pub(crate) fn push(&mut self, tensor_id: TensorId) {
+        if self.len >= MAX_SRC {
+            panic!("Exceeded maximum source tensors");
+        }
         self.arr[self.len] = tensor_id;
         self.len += 1;
     }
 
-    pub fn get_tensor(&self) -> Vec<TensorId> {
-        let mut tensor_arr: Vec<TensorId> = Vec::new();
-        for i in 0..self.len {
-            tensor_arr.push(self.arr[i].clone());
-        }
-        tensor_arr
+    pub(crate) fn as_slice(&self) -> &[TensorId] {
+        &self.arr[..self.len]
     }
 }
 
@@ -54,7 +61,7 @@ pub struct Tensor_ {
     pub dtype: DataType,
     pub layout: Layout,
     pub storage: Option<Arc<MemoryBlock>>,
-    pub src_tensor: TensorArray,
+    pub src_tensor: TensorIdArray,
     pub length: usize,
     pub tensor_type: TensorType,
     pub view_offs: usize,
@@ -73,7 +80,7 @@ impl Tensor_ {
             dtype: DataType::U8,
             layout: Layout::default(),
             storage: None,
-            src_tensor: TensorArray::new(),
+            src_tensor: TensorIdArray::new(),
             length: 0,
             tensor_type: TensorType::UNKNOWN,
             view_offs: 0,
@@ -81,18 +88,39 @@ impl Tensor_ {
             context: None,
         }
     }
-
-    fn mul_impl(&self, other: &Tensor, inplace: bool) -> Result<Tensor> {
-        todo!("mul impl");
-    }
 }
 
 impl Tensor {
     pub fn new() -> Self {
-       Tensor(Arc::new(RefCell::new(Tensor_::default())))
+        Tensor(Arc::new(RefCell::new(Tensor_::default())))
     }
-    pub fn mul(&self, other: &Tensor) -> Tensor {
-        todo!("rewrite mul impl");
+
+    fn mul_impl(&self, other: &Tensor, inplace: bool) -> Result<Tensor> {
+        let mut result = if inplace {
+            self.borrow().context.clone().unwrap().new_tensor_view(self.clone())
+        } else {
+            self.borrow().context.clone().unwrap().dup_tensor(self.clone())
+        };
+
+        match &mut result {
+            Ok(res) => {
+                res.set_src_tensor(self.get_tensor_id());
+                res.set_src_tensor(other.get_tensor_id());
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        }
+
+        result
+    }
+
+    pub fn mul(&self, other: &Tensor) -> Result<Tensor> {
+        self.mul_impl(other, false)
+    }
+
+    pub fn mul_inplace(&mut self, other: &Tensor) -> Result<Tensor> {
+        self.mul_impl(other, true)
     }
 
     pub fn set_tensor_id(&mut self, id: TensorId) -> &mut Self {
@@ -105,12 +133,12 @@ impl Tensor {
     }
 
     pub fn set_src_tensor(&mut self, src_tensor_id: TensorId) -> &mut Self {
-        self.borrow_mut().src_tensor.set_tensor(src_tensor_id);
+        self.borrow_mut().src_tensor.push(src_tensor_id);
         self
     }
 
     pub fn get_src_tensor(&self) -> Vec<TensorId> {
-        self.borrow().src_tensor.get_tensor()
+        self.borrow().src_tensor.as_slice().to_vec()
     }
 
     pub fn set_data_type(&mut self, dtype: DataType) -> &mut Self {
