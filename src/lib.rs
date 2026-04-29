@@ -9,3 +9,5 @@ mod memory_manager;
 mod object_pool;
 pub mod shape;
 pub mod tensor;
+#[cfg(feature = "cuda")]
+pub mod cuda;
