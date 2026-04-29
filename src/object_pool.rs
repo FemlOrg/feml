@@ -5,17 +5,11 @@ pub struct ObjectPool<T> {
 
 impl<T> ObjectPool<T> {
     pub fn new(factory: fn() -> T) -> Self {
-        Self {
-            free: Vec::new(),
-            factory,
-        }
+        Self { free: Vec::new(), factory }
     }
 
     pub fn with_capacity(factory: fn() -> T, capacity: usize) -> Self {
-        Self {
-            free: Vec::with_capacity(capacity),
-            factory,
-        }
+        Self { free: Vec::with_capacity(capacity), factory }
     }
 
     pub fn get(&mut self) -> T {

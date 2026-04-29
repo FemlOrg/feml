@@ -1,11 +1,11 @@
+pub mod backend;
 pub mod compute_graph;
 pub mod context;
 pub mod data_type;
+mod defs;
+pub mod error;
 pub mod layout;
 mod memory_manager;
+mod object_pool;
 pub mod shape;
 pub mod tensor;
-pub mod error;
-pub mod backend;
-mod object_pool;
-mod defs;

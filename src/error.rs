@@ -27,21 +27,14 @@ pub enum ErrorKind {
     /// @param msg Error message describing the context.
     /// @param expected The data type that was expected.
     /// @param got The actual data type that was received.
-    UnexpectedDType {
-        msg: &'static str,
-        expected: DataType,
-        got: DataType,
-    },
+    UnexpectedDType { msg: &'static str, expected: DataType, got: DataType },
 
     /// Error raised when a data type is not supported for a specific operation.
     ///
     /// @brief Unsupported data type for operation.
     /// @param dtype The data type that is not supported.
     /// @param op The operation name for which the dtype is unsupported.
-    UnsupportedDataTypeForOp {
-        dtype: DataType,
-        op: &'static str,
-    },
+    UnsupportedDataTypeForOp { dtype: DataType, op: &'static str },
 
     // ===== Shape =====
     /// Error raised when a tensor has an unexpected number of dimensions.
@@ -50,11 +43,7 @@ pub enum ErrorKind {
     /// @param expected The expected number of dimensions (rank).
     /// @param got The actual number of dimensions received.
     /// @param shape The shape of the tensor that caused the error.
-    UnexpectedNumberOfDims {
-        expected: usize,
-        got: usize,
-        shape: Shape,
-    },
+    UnexpectedNumberOfDims { expected: usize, got: usize, shape: Shape },
 
     // ===== Infra =====
     /// I/O error wrapper.

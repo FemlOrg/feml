@@ -4,17 +4,17 @@
 //! including memory management through object pools and table-based storage
 //! for tensors and compute graphs.
 
-use crate::compute_graph::{ ComputeGraph, GraphId };
-use crate::data_type::{ DataType, get_block_size, get_type_size };
+use crate::compute_graph::{ComputeGraph, GraphId};
+use crate::data_type::{get_block_size, get_type_size, DataType};
 use crate::defs::MAX_DIMS;
+use crate::error::Result;
+use crate::error::{Error, ErrorKind};
 use crate::object_pool::ObjectPool;
 use crate::shape::Shape;
-use crate::tensor::{ self, Tensor, Tensor_, TensorId };
+use crate::tensor::{self, Tensor, TensorId, Tensor_};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::error::Result;
-use crate::error::{ Error, ErrorKind };
 
 /// Internal context structure holding tensor and graph management data.
 ///
@@ -60,7 +60,8 @@ impl Context_ {
             tensor_pool: ObjectPool::with_capacity(Tensor_::default, *size),
             tensor_tables: HashMap::new(),
             graph_tables: HashMap::new(),
-        }).into()
+        })
+        .into()
     }
 
     /// Internal implementation for creating a new tensor.
@@ -76,25 +77,20 @@ impl Context_ {
         self: &mut Self,
         dtype: DataType,
         shape: &Shape,
-        view_src: Option<Tensor>
+        view_src: Option<Tensor>,
     ) -> Result<Tensor> {
         // Validate shape: ensure no dimension is zero
         if shape.0.iter().any(|&dim| dim == 0) {
-            return Err(
-                Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into())).context(
-                    "in new_tensor_impl"
-                )
-            );
+            return Err(Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into()))
+                .context("in new_tensor_impl"));
         }
 
         // Validate data type: check if supported for tensor creation
         if !matches!(dtype, DataType::F32 | DataType::I32) {
-            return Err(
-                Error::new(ErrorKind::UnsupportedDataTypeForOp {
-                    dtype,
-                    op: "tensor creation",
-                })
-            );
+            return Err(Error::new(ErrorKind::UnsupportedDataTypeForOp {
+                dtype,
+                op: "tensor creation",
+            }));
         }
 
         let mut tensor_ = self.tensor_pool.get(); // This operation always succeeds as ObjectPool provides objects
@@ -107,11 +103,8 @@ impl Context_ {
         if let Some(src) = view_src {
             // Verify source tensor exists in the context
             if !self.tensor_tables.contains_key(&src.borrow().id) {
-                return Err(
-                    Error::msg("view source tensor not found in context").context(
-                        "in new_tensor_impl"
-                    )
-                );
+                return Err(Error::msg("view source tensor not found in context")
+                    .context("in new_tensor_impl"));
             }
             tensor_.storage = src.borrow().storage.clone();
         }
@@ -136,9 +129,9 @@ impl Context_ {
         for i in 2..4 {
             let next_stride = tensor_.layout.stride[i - 1]
                 .checked_mul(tensor_.layout.shape.0[i - 1])
-                .ok_or_else(||
+                .ok_or_else(|| {
                     Error::msg("stride calculation overflow").context("in stride calculation")
-                )?;
+                })?;
             tensor_.layout.stride[i] = next_stride;
         }
 
@@ -165,13 +158,11 @@ impl Context {
     }
 
     pub fn new_tensor_view(self: &mut Self, view_src: Tensor) -> Result<Tensor> {
-        let mut tensor = self.0
-            .borrow_mut()
-            .new_tensor_impl(
-                view_src.borrow().dtype,
-                &view_src.borrow().layout.shape,
-                Some(view_src.clone())
-            )?;
+        let mut tensor = self.0.borrow_mut().new_tensor_impl(
+            view_src.borrow().dtype,
+            &view_src.borrow().layout.shape,
+            Some(view_src.clone()),
+        )?;
         tensor.set_context(self.clone());
 
         for i in 0..MAX_DIMS {
