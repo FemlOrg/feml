@@ -8,20 +8,20 @@ pub enum BackendDeviceType {
     ACCEL,
 }
 
-struct BackendDeviceCaps {
-    aysnc: bool,
-    host_buffer: bool,
-    buffer_from_host_ptr: bool,
-    events: bool,
+pub struct BackendDeviceCaps {
+    pub aysnc: bool,
+    pub host_buffer: bool,
+    pub buffer_from_host_ptr: bool,
+    pub events: bool,
 }
 
-struct BackendDeviceProps {
-    name: &'static str,
-    description: &'static str,
-    memory_free: usize,
-    memory_total: usize,
-    device_type: BackendDeviceType,
-    caps: BackendDeviceCaps,
+pub struct BackendDeviceProps {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub memory_free: usize,
+    pub memory_total: usize,
+    pub device_type: BackendDeviceType,
+    pub caps: BackendDeviceCaps,
 }
 
 // BackendBuffer = ggml_backend_buffer_type + ggml_backend_buffer
@@ -55,8 +55,6 @@ pub trait Backend {
     type Device: BackendDevice;
 
     fn get_name(&self) -> &str;
-
-    fn device(&self) -> &Self::Device;
 
     fn synchronize(&self);
 
@@ -95,7 +93,8 @@ pub trait BackendDevice: Send + Sync {
 
     fn supports_op(&self, tensor: Tensor) -> bool;
 
-    fn supports_buffer_allocator(&self, buffer_allocator: &Box<dyn BackendBufferAllocator>) -> bool;
+    fn supports_buffer_allocator(&self, buffer_allocator: &Box<dyn BackendBufferAllocator>)
+        -> bool;
 
     fn offload_op(&self, tensor: Tensor) -> bool;
 }
