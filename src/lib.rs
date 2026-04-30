@@ -11,3 +11,6 @@ pub mod shape;
 pub mod tensor;
 #[cfg(feature = "cuda")]
 pub mod cuda;
+
+#[cfg(feature = "cpu")]
+pub mod cpu;
