@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 cudarc = { version = "0.19.4", optional = true }
+ocl = { version = "0.19", optional = true }
 
 [features]
 default = ["cpu"]
 cpu = []
 cuda = ["cudarc"]
+opencl = ["ocl"]

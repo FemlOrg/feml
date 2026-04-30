@@ -14,3 +14,6 @@ pub mod cuda;
 
 #[cfg(feature = "cpu")]
 pub mod cpu;
+
+#[cfg(feature = "opencl")]
+pub mod opencl;
