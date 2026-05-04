@@ -27,3 +27,5 @@ target
 
 .vscode
 .venv
+
+Cargo.lock
