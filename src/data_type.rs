@@ -51,10 +51,12 @@ pub enum TensorType {
     UNKNOWN,
     InputParam,
     OutputParam,
+    FlagParam,
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum TensorOpType {
     UNKNOWN,
     TensorOpView,
     TensorOpMul,
+    TensorNone,
 }
