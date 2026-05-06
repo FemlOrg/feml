@@ -1,3 +1,5 @@
+use ocl::ffi::size_t;
+
 use crate::compute_graph::ComputeGraph;
 use crate::defs::Status;
 use crate::tensor::Tensor;
@@ -104,5 +106,5 @@ pub trait BackendRegister: Send + Sync {
 
     fn device_count(&self) -> usize;
 
-    fn device(&self) -> Box<dyn BackendDevice>;
+    fn device(&self, index : usize) ->Box<dyn BackendDevice>;
 }
