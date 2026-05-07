@@ -1,35 +1,61 @@
 use crate::backend::{
-    Backend, BackendBufferAllocator, BackendDevice, BackendDeviceCaps, BackendDeviceProps,
+    Backend,
+    BackendBufferAllocator,
+    BackendDevice,
+    BackendDeviceCaps,
+    BackendDeviceProps,
     BackendDeviceType,
+    BackendRegister,
 };
 use crate::compute_graph::ComputeGraph;
 use crate::defs::Status;
 use crate::tensor::Tensor;
-use cudarc::driver::result::event;
-use ocl::ffi::{clEnqueueBarrier, clEnqueueBarrierWithWaitList};
-#[cfg(feature = "opencl")]
-use ocl::{ocl_core, Context, Device, Event, Platform, Queue};
+use ocl::core::ContextProperties;
+use ocl::{ ocl_core, Context, Device, Event, Platform, Queue };
+use std::sync::OnceLock;
+
+static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
 
 struct OpenclBackendContext {
+    device: ocl::Device,
+    device_name: String,
+    context: ocl::Context,
     queue: ocl::Queue,
 }
 
 pub struct OpenclBackend {
-    device: Vec<OpenclDevice>,
+    device: OpenclDevice,
     context: OpenclBackendContext,
 }
 
-pub struct OpenclDevice;
+struct OpenclBackendRegister {
+    devices: Vec<OpenclDevice>,
+}
 
-impl OpenclBackend {
-    pub fn new() -> Self {
-        Self { device: Vec::new(), context: OpenclBackendContext }
-    }
+#[derive(Clone)]
+struct OpenclDevice {
+    platform: ocl::Platform,
+    platform_name: String,
+    device: ocl::Device,
+    device_name: String,
+    device_version: ocl_core::OpenclVersion,
+    context: ocl::Context,
 }
 
 impl Default for OpenclBackend {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl OpenclBackendContext {
+    pub fn new(device: &OpenclDevice) -> Self {
+        OpenclBackendContext {
+            device: device.device.clone(),
+            device_name: device.device_name,
+            context: device.context.clone(),
+            queue: ocl::Queue::new(&device.context, device.device, None)?,
+        }
     }
 }
 
@@ -66,6 +92,15 @@ impl Backend for OpenclBackend {
     fn get_tensor_async(&self, _tensor: Tensor, _data: *mut u8, _offset: usize, _size: usize) {}
 
     fn copy_tensor_async(&self, _src: Tensor, _dst: Tensor) {}
+}
+
+impl OpenclBackend {
+    pub fn init() -> Self {
+        let reg = OpenclBackendRegister::init();
+        let dev = reg.opencl_device(0);
+        let backend_ctx = OpenclBackendContext::new(&dev);
+        OpenclBackend { device: dev, context: backend_ctx }
+    }
 }
 
 impl BackendDevice for OpenclDevice {
@@ -109,12 +144,82 @@ impl BackendDevice for OpenclDevice {
 
     fn supports_buffer_allocator(
         &self,
-        _buffer_allocator: &Box<dyn BackendBufferAllocator>,
+        _buffer_allocator: &Box<dyn BackendBufferAllocator>
     ) -> bool {
         false
     }
 
     fn offload_op(&self, _tensor: Tensor) -> bool {
         false
+    }
+}
+
+impl BackendRegister for OpenclBackendRegister {
+    fn name(&self) -> &str {
+        "OpenCL"
+    }
+
+    fn device_count(&self) -> usize {
+        self.devices.len()
+    }
+
+    fn device(&self, index: usize) -> Box<dyn BackendDevice> {
+        Box::new(self.devices[index].clone())
+    }
+}
+
+impl OpenclBackendRegister {
+    pub fn init() -> &'static Self {
+        OPENCL_BACKEND_REG.get_or_init(|| {
+            Self::try_new().unwrap_or_else(|err| {
+                eprintln!("opencl: failed to initialize backend register: {err}");
+
+                Self { devices: Vec::new() }
+            })
+        })
+    }
+
+    pub fn opencl_device(&self, index: usize) -> OpenclDevice {
+        self.devices[index].clone()
+    }
+
+    fn try_new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self { devices: Self::probe_devices()? })
+    }
+
+    fn probe_devices() -> Result<Vec<OpenclDevice>, Box<dyn std::error::Error>> {
+        let mut opencl_devices: Vec<OpenclDevice> = Vec::new();
+
+        let platforms = ocl::Platform::list();
+
+        if platforms.is_empty() {
+            eprintln!("opencl: cannot find any platform!");
+            return Ok(opencl_devices);
+        }
+
+        for platform in platforms {
+            let devices = ocl::Device::list_all(&platform)?;
+            if devices.is_empty() {
+                continue;
+            }
+            let context = ocl::Context
+                ::builder()
+                .platform(platform.clone())
+                .devices(&devices)
+                .build()?;
+
+            for device in devices {
+                opencl_devices.push(OpenclDevice {
+                    platform: platform.clone(),
+                    platform_name: platform.name().ok()?,
+                    device: device.clone(),
+                    device_name: device.name().ok()?,
+                    device_version: device.version().ok()?,
+                    context: context.clone(),
+                });
+            }
+        }
+
+        Ok(opencl_devices)
     }
 }
