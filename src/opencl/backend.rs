@@ -1,5 +1,3 @@
-use std::thread::sleep;
-
 use crate::backend::{
     Backend,
     BackendBufferAllocator,
@@ -14,21 +12,27 @@ use crate::defs::Status;
 use crate::tensor::Tensor;
 use ocl::core::ContextProperties;
 use ocl::{ ocl_core, Context, Device, Event, Platform, Queue };
+use std::sync::OnceLock;
+
+static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
 
 struct OpenclBackendContext {
+    device: ocl::Device,
+    device_name: String,
+    context: ocl::Context,
     queue: ocl::Queue,
 }
 
 pub struct OpenclBackend {
     device: OpenclDevice,
     context: OpenclBackendContext,
-    reg : OpenclBackendRegister,
 }
 
 struct OpenclBackendRegister {
     devices: Vec<OpenclDevice>,
 }
 
+#[derive(Clone)]
 struct OpenclDevice {
     platform: ocl::Platform,
     platform_name: String,
@@ -41,6 +45,17 @@ struct OpenclDevice {
 impl Default for OpenclBackend {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl OpenclBackendContext {
+    pub fn new(device: &OpenclDevice) -> Self {
+        OpenclBackendContext {
+            device: device.device.clone(),
+            device_name: device.device_name,
+            context: device.context.clone(),
+            queue: ocl::Queue::new(&device.context, device.device, None)?,
+        }
     }
 }
 
@@ -81,7 +96,10 @@ impl Backend for OpenclBackend {
 
 impl OpenclBackend {
     pub fn init() -> Self {
-        
+        let reg = OpenclBackendRegister::init();
+        let dev = reg.opencl_device(0);
+        let backend_ctx = OpenclBackendContext::new(&dev);
+        OpenclBackend { device: dev, context: backend_ctx }
     }
 }
 
@@ -146,46 +164,62 @@ impl BackendRegister for OpenclBackendRegister {
     }
 
     fn device(&self, index: usize) -> Box<dyn BackendDevice> {
-        Box::new(self.devices[index])
+        Box::new(self.devices[index].clone())
     }
 }
 
 impl OpenclBackendRegister {
+    pub fn init() -> &'static Self {
+        OPENCL_BACKEND_REG.get_or_init(|| {
+            Self::try_new().unwrap_or_else(|err| {
+                eprintln!("opencl: failed to initialize backend register: {err}");
 
-    fn registe() -> Self {
-        OpenclBackendRegister { devices: Vec::new() }
+                Self { devices: Vec::new() }
+            })
+        })
     }
 
-    fn probe_devices(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn opencl_device(&self, index: usize) -> OpenclDevice {
+        self.devices[index].clone()
+    }
+
+    fn try_new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self { devices: Self::probe_devices()? })
+    }
+
+    fn probe_devices() -> Result<Vec<OpenclDevice>, Box<dyn std::error::Error>> {
+        let mut opencl_devices: Vec<OpenclDevice> = Vec::new();
+
         let platforms = ocl::Platform::list();
 
         if platforms.is_empty() {
             eprintln!("opencl: cannot find any platform!");
-            return Ok(());
+            return Ok(opencl_devices);
         }
 
         for platform in platforms {
             let devices = ocl::Device::list_all(&platform)?;
+            if devices.is_empty() {
+                continue;
+            }
             let context = ocl::Context
                 ::builder()
                 .platform(platform.clone())
                 .devices(&devices)
                 .build()?;
 
-            self.devices.extend(
-                devices.into_iter().filter_map(|device| {
-                    Some(OpenclDevice {
-                        platform: platform.clone(),
-                        platform_name: platform.name().ok()?,
-                        device: device.clone(),
-                        device_name: device.name().ok()?,
-                        device_version: device.version().ok()?,
-                        context: context.clone(),
-                    })
-                })
-            );
+            for device in devices {
+                opencl_devices.push(OpenclDevice {
+                    platform: platform.clone(),
+                    platform_name: platform.name().ok()?,
+                    device: device.clone(),
+                    device_name: device.name().ok()?,
+                    device_version: device.version().ok()?,
+                    context: context.clone(),
+                });
+            }
         }
 
-        Ok(())
+        Ok(opencl_devices)
     }
 }
