@@ -1,7 +1,6 @@
-use crate::context::Context;
 use crate::data_type::{DataType, TensorOpType, TensorType};
-use crate::defs::{MAX_DIMS, MAX_SRC};
-use crate::error::{Error, ErrorKind, Result};
+use crate::defs::MAX_SRC;
+use crate::error::Result;
 use crate::layout::Layout;
 use crate::memory_manager::MemoryBlock;
 use crate::shape::Shape;
@@ -23,30 +22,30 @@ impl TensorId {
         self.0
     }
 }
-
-struct TensorIdArray {
+#[allow(dead_code)]
+pub(crate) struct TensorIdArray {
     arr: [TensorId; MAX_SRC],
     len: usize,
 }
-
+#[allow(dead_code)]
 impl TensorIdArray {
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self { arr: [TensorId(0); MAX_SRC], len: 0 }
     }
 
-    pub(crate) fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.len
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    pub(crate) fn clear(&mut self) {
+    fn clear(&mut self) {
         self.len = 0;
     }
 
-    pub(crate) fn push(&mut self, tensor_id: TensorId) {
+    fn push(&mut self, tensor_id: TensorId) {
         if self.len >= MAX_SRC {
             panic!("Exceeded maximum source tensors");
         }
@@ -54,29 +53,28 @@ impl TensorIdArray {
         self.len += 1;
     }
 
-    pub(crate) fn as_slice(&self) -> &[TensorId] {
+    fn as_slice(&self) -> &[TensorId] {
         &self.arr[..self.len]
     }
 }
 
-pub struct Tensor_ {
-    pub id: TensorId,
-    pub name: String,
-    pub dtype: DataType,
-    pub layout: Layout,
-    pub storage: Option<Arc<MemoryBlock>>,
-    pub src_tensor: TensorIdArray,
-    pub length: usize,
-    pub tensor_type: TensorType,
-    pub view_offs: usize,
-    pub op_type: TensorOpType,
-    context: Option<Context>,
+pub struct TensorInner {
+    pub(crate) id: TensorId,
+    pub(crate) name: String,
+    pub(crate) dtype: DataType,
+    pub(crate) layout: Layout,
+    pub(crate) storage: Option<Arc<MemoryBlock>>,
+    pub(crate) src_tensor: TensorIdArray,
+    pub(crate) length: usize,
+    pub(crate) tensor_type: TensorType,
+    pub(crate) view_offs: usize,
+    pub(crate) op_type: TensorOpType,
 }
 
 #[derive(Clone)]
-pub struct Tensor(pub Arc<RefCell<Tensor_>>);
+pub struct Tensor(pub Arc<RefCell<TensorInner>>);
 
-impl Tensor_ {
+impl TensorInner {
     pub(crate) fn default() -> Self {
         Self {
             id: TensorId::new(),
@@ -89,42 +87,13 @@ impl Tensor_ {
             tensor_type: TensorType::UNKNOWN,
             view_offs: 0,
             op_type: TensorOpType::UNKNOWN,
-            context: None,
         }
     }
 }
 
 impl Tensor {
     pub fn new() -> Self {
-        Tensor(Arc::new(RefCell::new(Tensor_::default())))
-    }
-
-    fn mul_impl(&self, other: &Tensor, inplace: bool) -> Result<Tensor> {
-        let mut result = if inplace {
-            self.borrow().context.clone().unwrap().new_tensor_view(self.clone())
-        } else {
-            self.borrow().context.clone().unwrap().dup_tensor(self.clone())
-        };
-
-        match &mut result {
-            Ok(res) => {
-                res.set_src_tensor(self.get_tensor_id());
-                res.set_src_tensor(other.get_tensor_id());
-            }
-            Err(e) => {
-                eprintln!("{}", e);
-            }
-        }
-
-        result
-    }
-
-    pub fn mul(&self, other: &Tensor) -> Result<Tensor> {
-        self.mul_impl(other, false)
-    }
-
-    pub fn mul_inplace(&mut self, other: &Tensor) -> Result<Tensor> {
-        self.mul_impl(other, true)
+        Tensor(Arc::new(RefCell::new(TensorInner::default())))
     }
 
     pub fn set_tensor_id(&mut self, id: TensorId) -> &mut Self {
@@ -195,11 +164,6 @@ impl Tensor {
         self.borrow().op_type.clone()
     }
 
-    pub fn set_context(&mut self, context: Context) -> &mut Self {
-        self.borrow_mut().context = Some(context);
-        self
-    }
-
     pub fn get_tensor_type(&self) -> TensorType {
         self.borrow().tensor_type.clone()
     }
@@ -223,7 +187,7 @@ impl AsRef<Tensor> for Tensor {
 }
 
 impl std::ops::Deref for Tensor {
-    type Target = RefCell<Tensor_>;
+    type Target = RefCell<TensorInner>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

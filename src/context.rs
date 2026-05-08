@@ -4,14 +4,14 @@
 //! including memory management through object pools and table-based storage
 //! for tensors and compute graphs.
 
-use crate::compute_graph::{ ComputeGraph, GraphId };
-use crate::data_type::{ get_block_size, get_type_size, DataType };
+use crate::compute_graph::{ComputeGraph, GraphId};
+use crate::data_type::{get_block_size, get_type_size, DataType};
 use crate::defs::MAX_DIMS;
 use crate::error::Result;
-use crate::error::{ Error, ErrorKind };
+use crate::error::{Error, ErrorKind};
 use crate::object_pool::ObjectPool;
 use crate::shape::Shape;
-use crate::tensor::{ Tensor, TensorId, Tensor_ };
+use crate::tensor::{Tensor, TensorId, TensorInner};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -62,7 +62,7 @@ impl Default for ContextConfig {
 /// including an object pool for tensor instances and hash tables for lookup.
 pub struct ContextInner {
     /// Object pool for tensor instances to reduce allocation overhead.
-    pub tensor_pool: ObjectPool<Tensor_>,
+    pub tensor_pool: ObjectPool<TensorInner>,
     /// Hash table mapping tensor IDs to tensor objects.
     pub tensor_tables: HashMap<TensorId, Tensor>,
     /// Hash table mapping graph IDs to compute graph objects.
@@ -95,12 +95,16 @@ impl ContextInner {
     ///
     /// @param size The initial capacity for the tensor object pool.
     /// @return Some(Context_) if successful, None if initialization fails.
-    pub fn new(config: ContextConfig) -> Option<Self> {
+    fn new(config: ContextConfig) -> Option<Self> {
         (Self {
-            tensor_pool: ObjectPool::with_capacity(Tensor_::default, config.tensor_pool_capacity),
+            tensor_pool: ObjectPool::with_capacity(
+                TensorInner::default,
+                config.tensor_pool_capacity,
+            ),
             tensor_tables: HashMap::new(),
             graph_tables: HashMap::new(),
-        }).into()
+        })
+        .into()
     }
 
     /// Internal implementation for creating a new tensor.
@@ -116,44 +120,36 @@ impl ContextInner {
         self: &mut Self,
         dtype: DataType,
         shape: &Shape,
-        view_src: Option<Tensor>
+        view_src: Option<Tensor>,
     ) -> Result<Tensor> {
         // Validate shape: ensure no dimension is zero
         if shape.0.iter().any(|&dim| dim == 0) {
-            return Err(
-                Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into())).context(
-                    "in new_tensor_impl"
-                )
-            );
+            return Err(Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into()))
+                .context("in new_tensor_impl"));
         }
 
         // Validate data type: check if supported for tensor creation
         if !matches!(dtype, DataType::F32 | DataType::I32) {
-            return Err(
-                Error::new(ErrorKind::UnsupportedDataTypeForOp {
-                    dtype,
-                    op: "tensor creation",
-                })
-            );
+            return Err(Error::new(ErrorKind::UnsupportedDataTypeForOp {
+                dtype,
+                op: "tensor creation",
+            }));
         }
 
-        let mut tensor_ = self.tensor_pool.get(); // This operation always succeeds as ObjectPool provides objects
+        let mut tensor_inner = self.tensor_pool.get(); // This operation always succeeds as ObjectPool provides objects
 
-        tensor_.dtype = dtype;
-        tensor_.layout.shape = shape.clone();
-        tensor_.id = TensorId::new();
+        tensor_inner.dtype = dtype;
+        tensor_inner.layout.shape = shape.clone();
+        tensor_inner.id = TensorId::new();
 
         // Handle view source if provided
         if let Some(src) = view_src {
             // Verify source tensor exists in the context
             if !self.tensor_tables.contains_key(&src.borrow().id) {
-                return Err(
-                    Error::msg("view source tensor not found in context").context(
-                        "in new_tensor_impl"
-                    )
-                );
+                return Err(Error::msg("view source tensor not found in context")
+                    .context("in new_tensor_impl"));
             }
-            tensor_.storage = src.borrow().storage.clone();
+            tensor_inner.storage = src.borrow().storage.clone();
         }
 
         // Calculate strides with overflow checks
@@ -161,7 +157,7 @@ impl ContextInner {
         if type_size == 0 {
             return Err(Error::msg("invalid data type size").context("in stride calculation"));
         }
-        tensor_.layout.stride[0] = type_size;
+        tensor_inner.layout.stride[0] = type_size;
 
         let block_size = get_block_size(dtype);
         if block_size == 0 {
@@ -169,20 +165,20 @@ impl ContextInner {
                 Error::msg("invalid block size for data type").context("in stride calculation")
             );
         }
-        tensor_.layout.stride[1] =
-            tensor_.layout.stride[0] * (tensor_.layout.stride[0] / block_size);
+        tensor_inner.layout.stride[1] =
+            tensor_inner.layout.stride[0] * (tensor_inner.layout.stride[0] / block_size);
 
         // Calculate remaining strides with overflow protection
-        for i in 2..4 {
-            let next_stride = tensor_.layout.stride[i - 1]
-                .checked_mul(tensor_.layout.shape.0[i - 1])
+        for i in 2..MAX_DIMS {
+            let next_stride = tensor_inner.layout.stride[i - 1]
+                .checked_mul(tensor_inner.layout.shape.0[i - 1])
                 .ok_or_else(|| {
                     Error::msg("stride calculation overflow").context("in stride calculation")
                 })?;
-            tensor_.layout.stride[i] = next_stride;
+            tensor_inner.layout.stride[i] = next_stride;
         }
 
-        let tensor = Tensor(Arc::new(RefCell::new(tensor_)));
+        let tensor = Tensor(Arc::new(RefCell::new(tensor_inner)));
         self.tensor_tables.insert(tensor.borrow().id, tensor.clone());
 
         Ok(tensor)
@@ -199,20 +195,16 @@ impl Context {
     /// @param shape The shape (dimensions) of the tensor.
     /// @return Result containing the new tensor or an error.
     pub fn new_tensor(self: &mut Self, dtype: DataType, shape: &Shape) -> Result<Tensor> {
-        let mut tensor = self.borrow_mut().new_tensor_impl(dtype, shape, None)?;
-        tensor.set_context(self.clone());
+        let tensor = self.borrow_mut().new_tensor_impl(dtype, shape, None)?;
         Ok(tensor)
     }
 
     pub fn new_tensor_view(self: &mut Self, view_src: Tensor) -> Result<Tensor> {
-        let mut tensor = self.0
-            .borrow_mut()
-            .new_tensor_impl(
-                view_src.borrow().dtype,
-                &view_src.borrow().layout.shape,
-                Some(view_src.clone())
-            )?;
-        tensor.set_context(self.clone());
+        let tensor = self.borrow_mut().new_tensor_impl(
+            view_src.get_dtype(),
+            &view_src.borrow_mut().layout.shape,
+            Some(view_src.clone()),
+        )?;
 
         for i in 0..MAX_DIMS {
             tensor.borrow_mut().layout.stride[i] = view_src.borrow().layout.stride[i];
@@ -241,6 +233,34 @@ impl Context {
 
     pub fn builder() -> ContextBuilder {
         ContextBuilder::default()
+    }
+
+    fn mul_impl(&mut self, src0: Tensor, src1: Tensor, inplace: bool) -> Result<Tensor> {
+        let mut result = if inplace {
+            self.new_tensor_view(src0.clone())
+        } else {
+            self.dup_tensor(src0.clone())
+        };
+
+        match &mut result {
+            Ok(res) => {
+                res.set_src_tensor(src0.get_tensor_id());
+                res.set_src_tensor(src1.get_tensor_id());
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        }
+
+        result
+    }
+
+    pub fn mul(&mut self, src0: Tensor, src1: Tensor) -> Result<Tensor> {
+        self.mul_impl(src0, src1, false)
+    }
+
+    pub fn mul_inplace(&mut self, src0: Tensor, src1: Tensor) -> Result<Tensor> {
+        self.mul_impl(src0, src1, true)
     }
 }
 

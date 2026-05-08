@@ -106,9 +106,8 @@ impl ComputeGraph {
             *self.node_use_count.entry(src_id).or_insert(0) += 1;
             self.visit_parents(context, src_id)?;
         }
-
-        if tensor.borrow().op_type == TensorOpType::TensorNone
-            && tensor.borrow().tensor_type == TensorType::FlagParam
+        if tensor.get_op_type() == TensorOpType::TensorNone
+            && tensor.get_tensor_type() == TensorType::FlagParam
         {
             self.leaf_count += 1;
             tensor.set_name(format!("{}_leaf_{}", self.id.0, self.leaf_count));
@@ -179,8 +178,8 @@ mod tests {
     }
 
     fn mark_as_param_leaf(tensor: &mut crate::tensor::Tensor) {
-        tensor.borrow_mut().op_type = TensorOpType::TensorNone;
-        tensor.borrow_mut().tensor_type = TensorType::FlagParam;
+        tensor.get_op_type() = TensorOpType::TensorNone;
+        tensor.get_tensor_type() = TensorType::FlagParam;
     }
 
     fn index_of(nodes: &[TensorId], id: TensorId) -> usize {
@@ -221,8 +220,8 @@ mod tests {
         let (ctx, input) = new_tensor_in_context();
         {
             let tensor = ctx.borrow().tensor_tables.get(&input).unwrap().clone();
-            tensor.borrow_mut().op_type = TensorOpType::TensorNone;
-            tensor.borrow_mut().tensor_type = TensorType::FlagParam;
+            tensor.get_op_type() = TensorOpType::TensorNone;
+            tensor.get_tensor_type() = TensorType::FlagParam;
         }
 
         let mut graph = ComputeGraph::new();
@@ -332,8 +331,8 @@ mod tests {
         let (ctx, input) = new_tensor_in_context();
         {
             let tensor = ctx.borrow().tensor_tables.get(&input).unwrap().clone();
-            tensor.borrow_mut().op_type = TensorOpType::TensorNone;
-            tensor.borrow_mut().tensor_type = TensorType::FlagParam;
+            tensor.get_op_type() = TensorOpType::TensorNone;
+            tensor.get_tensor_type() = TensorType::FlagParam;
         }
         let mut graph = ComputeGraph::new();
 
