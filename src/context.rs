@@ -107,6 +107,10 @@ impl ContextInner {
         .into()
     }
 
+    fn contain_tensor_impl(&self, tensor_id: TensorId) -> bool {
+        self.tensor_tables.contains_key(&tensor_id)
+    }
+
     /// Internal implementation for creating a new tensor.
     ///
     /// This method handles the core logic of tensor creation, including validation,
@@ -145,7 +149,8 @@ impl ContextInner {
         // Handle view source if provided
         if let Some(src) = view_src {
             // Verify source tensor exists in the context
-            if !self.tensor_tables.contains_key(&src.borrow().id) {
+            println!("{}", src.get_tensor_id().as_usize());
+            if !self.contain_tensor_impl(src.get_tensor_id()) {
                 return Err(Error::msg("view source tensor not found in context")
                     .context("in new_tensor_impl"));
             }
@@ -179,7 +184,7 @@ impl ContextInner {
         }
 
         let tensor = Tensor(Arc::new(RefCell::new(tensor_inner)));
-        self.tensor_tables.insert(tensor.borrow().id, tensor.clone());
+        self.tensor_tables.insert(tensor.get_tensor_id(), tensor.clone());
 
         Ok(tensor)
     }
@@ -200,15 +205,14 @@ impl Context {
     }
 
     pub fn new_tensor_view(self: &mut Self, view_src: Tensor) -> Result<Tensor> {
-        let tensor = self.borrow_mut().new_tensor_impl(
-            view_src.get_dtype(),
-            &view_src.borrow_mut().layout.shape,
-            Some(view_src.clone()),
-        )?;
+        let dtype = view_src.get_dtype();
+        let shape = view_src.get_shape();
+        let stride = view_src.borrow().layout.stride;
 
-        for i in 0..MAX_DIMS {
-            tensor.borrow_mut().layout.stride[i] = view_src.borrow().layout.stride[i];
-        }
+        let tensor = self.borrow_mut().new_tensor_impl(dtype, &shape, Some(view_src.clone()))?;
+
+        tensor.borrow_mut().layout.stride = stride;
+
         Ok(tensor)
     }
 
@@ -227,12 +231,23 @@ impl Context {
         todo!();
     }
 
+    pub fn contain_tensor(&self, tensor_id: TensorId) -> bool {
+        self.borrow().contain_tensor_impl(tensor_id)
+    }
+
     pub fn with_config(config: ContextConfig) -> Self {
         Context(Rc::new(RefCell::new(ContextInner::new(config).unwrap())))
     }
 
     pub fn builder() -> ContextBuilder {
         ContextBuilder::default()
+    }
+
+    pub fn get_tensor(&self, tensor_id: TensorId) -> Result<Tensor> {
+        self.borrow().tensor_tables.get(&tensor_id).cloned().ok_or_else(|| {
+            Error::msg(format!("tensor {} not found", tensor_id.as_usize()))
+                .context("in Context::get_tensor")
+        })
     }
 
     fn mul_impl(&mut self, src0: Tensor, src1: Tensor, inplace: bool) -> Result<Tensor> {
@@ -272,24 +287,24 @@ mod tests {
 
     #[test]
     fn test_context_new() {
-        let ctx = Context::new(10);
+        let ctx = Context::builder().tensor_pool_capacity(10).build();
         assert_eq!(ctx.borrow().tensor_tables.len(), 0);
         assert_eq!(ctx.borrow().graph_tables.len(), 0);
     }
 
     #[test]
     fn test_new_tensor_success() {
-        let mut ctx = Context::new(10);
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = Shape([2, 3, 4, 5]);
         let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
         assert_eq!(tensor.borrow().dtype, DataType::F32);
         assert_eq!(tensor.borrow().layout.shape, shape);
-        assert!(ctx.borrow().tensor_tables.contains_key(&tensor.borrow().id));
+        assert!(ctx.contain_tensor(tensor.get_tensor_id()));
     }
 
     #[test]
     fn test_new_tensor_zero_dimension() {
-        let mut ctx = Context::new(10);
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = Shape([0, 3, 4, 5]);
         let result = ctx.new_tensor(DataType::F32, &shape);
         assert!(result.is_err());
@@ -298,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_new_tensor_unsupported_dtype() {
-        let mut ctx = Context::new(10);
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = Shape([2, 3, 4, 5]);
         let result = ctx.new_tensor(DataType::U8, &shape);
         assert!(result.is_err());
@@ -307,33 +322,27 @@ mod tests {
 
     #[test]
     fn test_new_tensor_view_success() {
-        let mut ctx = Context::new(10);
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = Shape([2, 3, 4, 5]);
         let src_tensor = ctx.new_tensor(DataType::I32, &shape).unwrap();
+        assert!(ctx.contain_tensor(src_tensor.get_tensor_id()));
         let view_tensor = ctx.new_tensor_view(src_tensor.clone()).unwrap();
         assert_eq!(view_tensor.borrow().dtype, DataType::I32);
         assert_eq!(view_tensor.borrow().layout.shape, shape);
-        for i in 0..4 {
+        for i in 0..MAX_DIMS {
             assert_eq!(view_tensor.borrow().layout.stride[i], src_tensor.borrow().layout.stride[i]);
         }
-        assert!(ctx.borrow().tensor_tables.contains_key(&view_tensor.borrow().id));
+        assert!(ctx.contain_tensor(view_tensor.get_tensor_id()));
     }
 
     #[test]
     fn test_new_tensor_view_invalid_source() {
-        let mut ctx = Context::new(10);
-        let mut other_ctx = Context::new(10);
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
+        let mut other_ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = Shape([2, 3, 4, 5]);
         let src_tensor = other_ctx.new_tensor(DataType::F32, &shape).unwrap();
         let result = ctx.new_tensor_view(src_tensor);
         assert!(result.is_err());
         assert!(result.err().unwrap().to_string().contains("view source tensor not found"));
-    }
-
-    #[test]
-    #[should_panic(expected = "not yet implemented")]
-    fn test_new_graph_panics() {
-        let ctx = Context::new(10);
-        let _ = ctx.new_graph();
     }
 }

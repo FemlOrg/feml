@@ -164,6 +164,11 @@ impl Tensor {
         self.borrow().op_type.clone()
     }
 
+    pub fn set_tensor_type(&mut self, tensor_type: TensorType) -> &mut Self {
+        self.borrow_mut().tensor_type = tensor_type;
+        self
+    }
+
     pub fn get_tensor_type(&self) -> TensorType {
         self.borrow().tensor_type.clone()
     }
@@ -305,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_tensor_data() {
-        let tensor = Tensor_::default();
+        let tensor = TensorInner::default();
         assert!(tensor.storage.is_none());
     }
 
@@ -325,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_tensor_as_ref() {
-        let tensor = Tensor(Arc::new(RefCell::new(Tensor_::default())));
+        let tensor = Tensor(Arc::new(RefCell::new(TensorInner::default())));
         let refed: &Tensor = tensor.as_ref();
 
         assert_eq!(std::ptr::eq(refed, &tensor), true);
@@ -436,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_tensor_view_offs() {
-        let mut tensor = Tensor_::default();
+        let mut tensor = TensorInner::default();
 
         assert_eq!(tensor.view_offs, 0);
 
