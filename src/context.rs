@@ -4,23 +4,63 @@
 //! including memory management through object pools and table-based storage
 //! for tensors and compute graphs.
 
-use crate::compute_graph::{ComputeGraph, GraphId};
-use crate::data_type::{get_block_size, get_type_size, DataType};
+use crate::compute_graph::{ ComputeGraph, GraphId };
+use crate::data_type::{ get_block_size, get_type_size, DataType };
 use crate::defs::MAX_DIMS;
 use crate::error::Result;
-use crate::error::{Error, ErrorKind};
+use crate::error::{ Error, ErrorKind };
 use crate::object_pool::ObjectPool;
 use crate::shape::Shape;
-use crate::tensor::{self, Tensor, TensorId, Tensor_};
+use crate::tensor::{ Tensor, TensorId, Tensor_ };
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
+
+#[derive(Debug, Clone)]
+pub struct ContextConfig {
+    pub tensor_pool_capacity: usize,
+    pub graph_pool_cacacity: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ContextBuilder {
+    config: ContextConfig,
+}
+
+impl Default for ContextBuilder {
+    fn default() -> Self {
+        Self { config: ContextConfig::default() }
+    }
+}
+
+impl ContextBuilder {
+    pub fn tensor_pool_capacity(mut self, capacity: usize) -> Self {
+        self.config.tensor_pool_capacity = capacity;
+        self
+    }
+
+    pub fn graph_pool_capacity(mut self, capacity: usize) -> Self {
+        self.config.graph_pool_cacacity = capacity;
+        self
+    }
+
+    pub fn build(self) -> Context {
+        Context::with_config(self.config)
+    }
+}
+
+impl Default for ContextConfig {
+    fn default() -> Self {
+        Self { tensor_pool_capacity: 1024, graph_pool_cacacity: 0 }
+    }
+}
 
 /// Internal context structure holding tensor and graph management data.
 ///
 /// This struct contains the core data structures for managing tensors and compute graphs,
 /// including an object pool for tensor instances and hash tables for lookup.
-pub struct Context_ {
+pub struct ContextInner {
     /// Object pool for tensor instances to reduce allocation overhead.
     pub tensor_pool: ObjectPool<Tensor_>,
     /// Hash table mapping tensor IDs to tensor objects.
@@ -34,7 +74,7 @@ pub struct Context_ {
 /// This struct wraps the internal `Context_` in an `Arc<RefCell<>>` to allow
 /// shared mutable access across threads while maintaining interior mutability.
 #[derive(Clone)]
-pub struct Context(Arc<RefCell<Context_>>);
+pub struct Context(Rc<RefCell<ContextInner>>);
 
 impl AsRef<Context> for Context {
     fn as_ref(&self) -> &Context {
@@ -43,25 +83,24 @@ impl AsRef<Context> for Context {
 }
 
 impl std::ops::Deref for Context {
-    type Target = RefCell<Context_>;
+    type Target = RefCell<ContextInner>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl Context_ {
+impl ContextInner {
     /// Creates a new internal context with specified tensor pool capacity.
     ///
     /// @param size The initial capacity for the tensor object pool.
     /// @return Some(Context_) if successful, None if initialization fails.
-    pub fn new(size: &usize) -> Option<Self> {
+    pub fn new(config: ContextConfig) -> Option<Self> {
         (Self {
-            tensor_pool: ObjectPool::with_capacity(Tensor_::default, *size),
+            tensor_pool: ObjectPool::with_capacity(Tensor_::default, config.tensor_pool_capacity),
             tensor_tables: HashMap::new(),
             graph_tables: HashMap::new(),
-        })
-        .into()
+        }).into()
     }
 
     /// Internal implementation for creating a new tensor.
@@ -77,20 +116,25 @@ impl Context_ {
         self: &mut Self,
         dtype: DataType,
         shape: &Shape,
-        view_src: Option<Tensor>,
+        view_src: Option<Tensor>
     ) -> Result<Tensor> {
         // Validate shape: ensure no dimension is zero
         if shape.0.iter().any(|&dim| dim == 0) {
-            return Err(Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into()))
-                .context("in new_tensor_impl"));
+            return Err(
+                Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into())).context(
+                    "in new_tensor_impl"
+                )
+            );
         }
 
         // Validate data type: check if supported for tensor creation
         if !matches!(dtype, DataType::F32 | DataType::I32) {
-            return Err(Error::new(ErrorKind::UnsupportedDataTypeForOp {
-                dtype,
-                op: "tensor creation",
-            }));
+            return Err(
+                Error::new(ErrorKind::UnsupportedDataTypeForOp {
+                    dtype,
+                    op: "tensor creation",
+                })
+            );
         }
 
         let mut tensor_ = self.tensor_pool.get(); // This operation always succeeds as ObjectPool provides objects
@@ -103,8 +147,11 @@ impl Context_ {
         if let Some(src) = view_src {
             // Verify source tensor exists in the context
             if !self.tensor_tables.contains_key(&src.borrow().id) {
-                return Err(Error::msg("view source tensor not found in context")
-                    .context("in new_tensor_impl"));
+                return Err(
+                    Error::msg("view source tensor not found in context").context(
+                        "in new_tensor_impl"
+                    )
+                );
             }
             tensor_.storage = src.borrow().storage.clone();
         }
@@ -158,11 +205,13 @@ impl Context {
     }
 
     pub fn new_tensor_view(self: &mut Self, view_src: Tensor) -> Result<Tensor> {
-        let mut tensor = self.0.borrow_mut().new_tensor_impl(
-            view_src.borrow().dtype,
-            &view_src.borrow().layout.shape,
-            Some(view_src.clone()),
-        )?;
+        let mut tensor = self.0
+            .borrow_mut()
+            .new_tensor_impl(
+                view_src.borrow().dtype,
+                &view_src.borrow().layout.shape,
+                Some(view_src.clone())
+            )?;
         tensor.set_context(self.clone());
 
         for i in 0..MAX_DIMS {
@@ -186,9 +235,12 @@ impl Context {
         todo!();
     }
 
-    /// Creates a new context with the specified tensor pool capacity.
-    pub fn new(size: usize) -> Self {
-        Context(Arc::new(RefCell::new(Context_::new(&size).unwrap())))
+    pub fn with_config(config: ContextConfig) -> Self {
+        Context(Rc::new(RefCell::new(ContextInner::new(config).unwrap())))
+    }
+
+    pub fn builder() -> ContextBuilder {
+        ContextBuilder::default()
     }
 }
 
