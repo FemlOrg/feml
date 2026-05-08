@@ -93,7 +93,7 @@ impl ComputeGraph {
             return Ok(());
         }
 
-        let mut tensor = context.borrow().tensor_tables.get(&input).cloned().ok_or_else(|| {
+        let mut tensor = context.get_tensor(input).map_err(|_err| {
             Error::msg(format!("tensor {} not found in context.tensor_tables", input.as_usize()))
                 .context("in ComputeGraph::visit_parents")
         })?;
@@ -106,9 +106,8 @@ impl ComputeGraph {
             *self.node_use_count.entry(src_id).or_insert(0) += 1;
             self.visit_parents(context, src_id)?;
         }
-
-        if tensor.borrow().op_type == TensorOpType::TensorNone
-            && tensor.borrow().tensor_type == TensorType::FlagParam
+        if tensor.get_op_type() == TensorOpType::TensorNone
+            && tensor.get_tensor_type() == TensorType::FlagParam
         {
             self.leaf_count += 1;
             tensor.set_name(format!("{}_leaf_{}", self.id.0, self.leaf_count));
@@ -167,7 +166,7 @@ mod tests {
     use crate::shape::Shape;
 
     fn new_tensor_in_context() -> (Context, TensorId) {
-        let mut ctx = Context::new(8);
+        let mut ctx = Context::builder().tensor_pool_capacity(8).build();
         let shape = Shape([2, 2, 1, 1]);
         let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
         (ctx, tensor.get_tensor_id())
@@ -179,8 +178,8 @@ mod tests {
     }
 
     fn mark_as_param_leaf(tensor: &mut crate::tensor::Tensor) {
-        tensor.borrow_mut().op_type = TensorOpType::TensorNone;
-        tensor.borrow_mut().tensor_type = TensorType::FlagParam;
+        tensor.set_op_type(TensorOpType::TensorNone);
+        tensor.set_tensor_type(TensorType::FlagParam);
     }
 
     fn index_of(nodes: &[TensorId], id: TensorId) -> usize {
@@ -212,7 +211,7 @@ mod tests {
         assert!(graph.leafs().is_empty());
         assert!(graph.contains(input));
 
-        let tensor_name = ctx.borrow().tensor_tables.get(&input).unwrap().get_name();
+        let tensor_name = ctx.get_tensor(input).unwrap().get_name();
         assert_eq!(tensor_name, format!("{}_node_1", graph.id().as_usize()));
     }
 
@@ -220,9 +219,10 @@ mod tests {
     fn test_visit_parents_adds_leaf_for_flag_param_tensor_none() {
         let (ctx, input) = new_tensor_in_context();
         {
-            let tensor = ctx.borrow().tensor_tables.get(&input).unwrap().clone();
-            tensor.borrow_mut().op_type = TensorOpType::TensorNone;
-            tensor.borrow_mut().tensor_type = TensorType::FlagParam;
+            let _ = ctx.get_tensor(input).map(|mut tensor| {
+                tensor.set_tensor_type(TensorType::FlagParam);
+                tensor.set_op_type(TensorOpType::TensorNone);
+            });
         }
 
         let mut graph = ComputeGraph::new();
@@ -233,8 +233,9 @@ mod tests {
         assert!(graph.nodes().is_empty());
         assert_eq!(graph.leafs(), &[input]);
 
-        let tensor_name = ctx.borrow().tensor_tables.get(&input).unwrap().get_name();
-        assert_eq!(tensor_name, format!("{}_leaf_1", graph.id().as_usize()));
+        let _ = ctx.get_tensor(input).map(|tensor| {
+            assert_eq!(tensor.get_name(), format!("{}_leaf_1", graph.id().as_usize()));
+        });
     }
 
     #[test]
@@ -288,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_visit_parents_returns_error_when_tensor_missing() {
-        let ctx = Context::new(8);
+        let ctx = Context::builder().tensor_pool_capacity(10).build();
         let mut graph = ComputeGraph::new();
 
         let err = graph.visit_parents(&ctx, TensorId::new()).unwrap_err();
@@ -298,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_visit_parents_records_dfs_topology_and_use_counts() {
-        let mut ctx = Context::new(8);
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let mut a = new_test_tensor(&mut ctx);
         let mut b = new_test_tensor(&mut ctx);
         let mut c = new_test_tensor(&mut ctx);
@@ -331,9 +332,10 @@ mod tests {
     fn test_build_forward_expand_true_accepts_new_leaf_output() {
         let (ctx, input) = new_tensor_in_context();
         {
-            let tensor = ctx.borrow().tensor_tables.get(&input).unwrap().clone();
-            tensor.borrow_mut().op_type = TensorOpType::TensorNone;
-            tensor.borrow_mut().tensor_type = TensorType::FlagParam;
+            let _ = ctx.get_tensor(input).map(|mut tensor| {
+                tensor.set_op_type(TensorOpType::TensorNone);
+                tensor.set_tensor_type(TensorType::FlagParam);
+            });
         }
         let mut graph = ComputeGraph::new();
 

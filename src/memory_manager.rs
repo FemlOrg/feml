@@ -58,6 +58,7 @@ unsafe impl Send for ManagerState {}
 unsafe impl Sync for ManagerState {}
 
 /// MemoryManager manages memory regions and handles allocation and deallocation.
+#[allow(dead_code)]
 pub struct MemoryManager {
     /// Mutex to protect the internal state of the memory manager.
     inner: Mutex<ManagerState>,
@@ -65,6 +66,7 @@ pub struct MemoryManager {
     size_compare_ratios: usize,
 }
 
+#[allow(dead_code)]
 impl MemoryManager {
     /// Creates a new `MemoryManager` with a specified initial size and comparison ratio for size splitting.
     ///
@@ -147,7 +149,7 @@ impl MemoryManager {
                     let current_len = segment.len;
 
                     let threshold =
-                        (current_len.checked_mul(self.size_compare_ratios).unwrap_or(usize::MAX))
+                        current_len.checked_mul(self.size_compare_ratios).unwrap_or(usize::MAX)
                             >> 8;
 
                     // Check if the current segment is large enough to allocate
@@ -375,11 +377,11 @@ mod tests {
         assert_eq!(b2.start, 0); // Start at the beginning of the new region
 
         // Verify that writes and reads do not interfere
-        b1.write(&[0xAA; 10]);
-        b2.write(&[0xBB; 10]);
+        b1.write(&[0xaa; 10]);
+        b2.write(&[0xbb; 10]);
 
-        assert_eq!(b1.read()[0], 0xAA);
-        assert_eq!(b2.read()[0], 0xBB);
+        assert_eq!(b1.read()[0], 0xaa);
+        assert_eq!(b2.read()[0], 0xbb);
     }
 
     #[test]
@@ -421,7 +423,7 @@ mod tests {
         // Verify data in each block
         for (i, b) in blocks.iter().enumerate() {
             let data = b.read();
-            assert!(data.iter().all(|&x| x == i as u8));
+            assert!(data.iter().all(|&x| x == (i as u8)));
         }
     }
 

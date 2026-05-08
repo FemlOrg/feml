@@ -1,17 +1,12 @@
 use crate::backend::{
-    Backend,
-    BackendBufferAllocator,
-    BackendDevice,
-    BackendDeviceCaps,
-    BackendDeviceProps,
-    BackendDeviceType,
-    BackendRegister,
+    Backend, BackendBufferAllocator, BackendDevice, BackendDeviceCaps, BackendDeviceProps,
+    BackendDeviceType, BackendRegister,
 };
 use crate::compute_graph::ComputeGraph;
 use crate::defs::Status;
 use crate::tensor::Tensor;
 use ocl::core::ContextProperties;
-use ocl::{ ocl_core, Context, Device, Event, Platform, Queue };
+use ocl::{ocl_core, Context, Device, Event, Platform, Queue};
 use std::sync::OnceLock;
 
 static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
@@ -144,7 +139,7 @@ impl BackendDevice for OpenclDevice {
 
     fn supports_buffer_allocator(
         &self,
-        _buffer_allocator: &Box<dyn BackendBufferAllocator>
+        _buffer_allocator: &Box<dyn BackendBufferAllocator>,
     ) -> bool {
         false
     }
@@ -202,11 +197,8 @@ impl OpenclBackendRegister {
             if devices.is_empty() {
                 continue;
             }
-            let context = ocl::Context
-                ::builder()
-                .platform(platform.clone())
-                .devices(&devices)
-                .build()?;
+            let context =
+                ocl::Context::builder().platform(platform.clone()).devices(&devices).build()?;
 
             for device in devices {
                 opencl_devices.push(OpenclDevice {

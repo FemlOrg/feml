@@ -104,5 +104,5 @@ pub trait BackendRegister: Send + Sync {
 
     fn device_count(&self) -> usize;
 
-    fn device(&self, index : usize) ->Box<dyn BackendDevice>;
+    fn device(&self, index: usize) -> Box<dyn BackendDevice>;
 }
