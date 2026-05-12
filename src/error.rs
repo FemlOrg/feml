@@ -27,14 +27,21 @@ pub enum ErrorKind {
     /// @param msg Error message describing the context.
     /// @param expected The data type that was expected.
     /// @param got The actual data type that was received.
-    UnexpectedDType { msg: &'static str, expected: DataType, got: DataType },
+    UnexpectedDType {
+        msg: &'static str,
+        expected: DataType,
+        got: DataType,
+    },
 
     /// Error raised when a data type is not supported for a specific operation.
     ///
     /// @brief Unsupported data type for operation.
     /// @param dtype The data type that is not supported.
     /// @param op The operation name for which the dtype is unsupported.
-    UnsupportedDataTypeForOp { dtype: DataType, op: &'static str },
+    UnsupportedDataTypeForOp {
+        dtype: DataType,
+        op: &'static str,
+    },
 
     // ===== Shape =====
     /// Error raised when a tensor has an unexpected number of dimensions.
@@ -43,7 +50,40 @@ pub enum ErrorKind {
     /// @param expected The expected number of dimensions (rank).
     /// @param got The actual number of dimensions received.
     /// @param shape The shape of the tensor that caused the error.
-    UnexpectedNumberOfDims { expected: usize, got: usize, shape: Shape },
+    UnexpectedNumberOfDims {
+        expected: usize,
+        got: usize,
+        shape: Shape,
+    },
+
+    // ===== Backend =====
+    BackendUnavailable {
+        backend: &'static str,
+    },
+
+    DeviceNotFound {
+        backend: &'static str,
+        index: usize,
+        count: usize,
+    },
+
+    BackendOperationFailed {
+        backend: &'static str,
+        op: &'static str,
+    },
+
+    AllocationFailed {
+        backend: &'static str,
+        size: usize,
+    },
+
+    UnsupportedBackendOp {
+        backend: &'static str,
+        op: &'static str,
+    },
+
+    #[cfg(feature = "opencl")]
+    OpenCl(ocl::Error),
 
     // ===== Infra =====
     /// I/O error wrapper.
@@ -228,6 +268,29 @@ impl fmt::Display for ErrorKind {
                 write!(f, "unexpected rank, expected: {expected}, got: {got} ({shape:?})")
             }
 
+            ErrorKind::BackendUnavailable { backend } => {
+                write!(f, "backend {backend} is unavailable")
+            }
+
+            ErrorKind::DeviceNotFound { backend, index, count } => {
+                write!(f, "device {index} not found for backend {backend}, device count: {count}")
+            }
+
+            ErrorKind::BackendOperationFailed { backend, op } => {
+                write!(f, "backend {backend} failed while running {op}")
+            }
+
+            ErrorKind::AllocationFailed { backend, size } => {
+                write!(f, "backend {backend} failed to allocate {size} bytes")
+            }
+
+            ErrorKind::UnsupportedBackendOp { backend, op } => {
+                write!(f, "backend {backend} does not support operation {op}")
+            }
+
+            #[cfg(feature = "opencl")]
+            ErrorKind::OpenCl(e) => write!(f, "{e}"),
+
             ErrorKind::Io(e) => write!(f, "{e}"),
 
             ErrorKind::ParseInt(e) => write!(f, "{e}"),
@@ -251,6 +314,8 @@ impl std::error::Error for Error {
         match &self.kind {
             ErrorKind::Io(e) => Some(e),
             ErrorKind::ParseInt(e) => Some(e),
+            #[cfg(feature = "opencl")]
+            ErrorKind::OpenCl(e) => Some(e),
             _ => None,
         }
     }
@@ -279,6 +344,13 @@ impl From<std::io::Error> for Error {
 impl From<std::num::ParseIntError> for Error {
     fn from(e: std::num::ParseIntError) -> Self {
         Error::new(ErrorKind::ParseInt(e))
+    }
+}
+
+#[cfg(feature = "opencl")]
+impl From<ocl::Error> for Error {
+    fn from(e: ocl::Error) -> Self {
+        Error::new(ErrorKind::OpenCl(e))
     }
 }
 
