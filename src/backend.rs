@@ -1,5 +1,5 @@
 use crate::compute_graph::ComputeGraph;
-use crate::defs::Status;
+use crate::error::Result;
 use crate::tensor::Tensor;
 
 pub enum BackendDeviceType {
@@ -32,13 +32,23 @@ pub trait BackendBuffer: Send + Sync {
 
     fn get_base(&self) -> *mut u8;
 
-    fn clear(&self, value: u8);
+    fn clear(&self, value: u8) -> Result<()>;
 
-    fn reset(&self);
+    fn reset(&self) -> Result<()>;
+
+    fn init_tensor(&self, tensor: Tensor) -> Result<()>;
+
+    fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()>;
+
+    fn set_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
+
+    fn get_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
+
+    fn copy_tensor(&self, src: Tensor, dst: Tensor) -> Result<()>;
 }
 
 pub trait BackendBufferAllocator {
-    fn allocate_buffer(&self, size: usize) -> Box<dyn BackendBuffer>;
+    fn allocate_buffer(&self, size: usize) -> Result<Box<dyn BackendBuffer>>;
 
     fn alignment(&self) -> usize {
         std::mem::align_of::<usize>()
@@ -48,36 +58,39 @@ pub trait BackendBufferAllocator {
         usize::MAX
     }
 
-    fn alloc_size(&self, tensor: Tensor) -> usize;
+    fn alloc_size(&self, tensor: Tensor) -> Result<usize>;
 }
 
 pub trait Backend {
     type Device: BackendDevice;
 
-    fn get_name(&self) -> &str;
+    fn name(&self) -> &str;
 
-    fn synchronize(&self);
+    fn synchronize(&self) -> Result<()>;
 
-    fn graph_compute(&self, graph: &mut ComputeGraph) -> Status;
+    fn graph_compute(&self, graph: &mut ComputeGraph) -> Result<()>;
 
-    fn memcpy_async(&self, dst: *mut u8, src: *const u8, size: usize);
+    fn memcpy_async(&self, dst: *mut u8, src: *const u8, size: usize) -> Result<()>;
 
-    fn init_tensor(&self, tensor: Tensor);
+    fn set_tensor_async(
+        &self,
+        tensor: Tensor,
+        data: *mut u8,
+        offset: usize,
+        size: usize,
+    ) -> Result<()>;
 
-    fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize);
+    fn get_tensor_async(
+        &self,
+        tensor: Tensor,
+        data: *mut u8,
+        offset: usize,
+        size: usize,
+    ) -> Result<()>;
 
-    fn set_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize);
-
-    fn get_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize);
-
-    fn copy_tensor(&self, src: Tensor, dst: Tensor);
-
-    fn set_tensor_async(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize);
-
-    fn get_tensor_async(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize);
-
-    fn copy_tensor_async(&self, src: Tensor, dst: Tensor);
+    fn copy_tensor_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
 }
+
 pub trait BackendDevice: Send + Sync {
     fn name(&self) -> &str;
 
@@ -89,12 +102,11 @@ pub trait BackendDevice: Send + Sync {
 
     fn props(&self) -> BackendDeviceProps;
 
-    fn init(&self, params: *mut u8);
+    fn init(&self, params: *mut u8) -> Result<()>;
 
     fn supports_op(&self, tensor: Tensor) -> bool;
 
-    fn supports_buffer_allocator(&self, buffer_allocator: &Box<dyn BackendBufferAllocator>)
-        -> bool;
+    fn supports_buffer_allocator(&self, buffer_allocator: &dyn BackendBufferAllocator) -> bool;
 
     fn offload_op(&self, tensor: Tensor) -> bool;
 }
@@ -104,5 +116,5 @@ pub trait BackendRegister: Send + Sync {
 
     fn device_count(&self) -> usize;
 
-    fn device(&self, index: usize) -> Box<dyn BackendDevice>;
+    fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>>;
 }
