@@ -26,6 +26,8 @@ struct OpenclBackendRegister {
     devices: Vec<OpenclDevice>,
 }
 
+struct OpenclBackendBuffer;
+
 #[derive(Clone)]
 pub struct OpenclDevice {
     platform: ocl::Platform,
@@ -47,27 +49,7 @@ impl OpenclBackendContext {
     }
 }
 
-impl Backend for OpenclBackend {
-    type Device = OpenclDevice;
-
-    fn name(&self) -> &str {
-        "opencl"
-    }
-
-    fn synchronize(&self) -> Result<()> {
-        let event = self.context.queue.enqueue_marker(None::<()>)?;
-        event.wait_for().map_err(ocl::Error::from)?;
-        Ok(())
-    }
-
-    fn graph_compute(&self, _graph: &mut ComputeGraph) -> Result<()> {
-        Err(Error::new(ErrorKind::UnsupportedBackendOp { backend: "opencl", op: "graph_compute" }))
-    }
-
-    fn memcpy_async(&self, _dst: *mut u8, _src: *const u8, _size: usize) -> Result<()> {
-        Ok(())
-    }
-
+impl BackendBuffer for OpenclBackendBuffer {
     fn init_tensor(&self, _tensor: Tensor) -> Result<()> {
         Ok(())
     }
@@ -103,6 +85,28 @@ impl Backend for OpenclBackend {
     }
 
     fn copy_tensor(&self, _src: Tensor, _dst: Tensor) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl Backend for OpenclBackend {
+    type Device = OpenclDevice;
+
+    fn name(&self) -> &str {
+        "opencl"
+    }
+
+    fn synchronize(&self) -> Result<()> {
+        let event = self.context.queue.enqueue_marker(None::<()>)?;
+        event.wait_for().map_err(ocl::Error::from)?;
+        Ok(())
+    }
+
+    fn graph_compute(&self, _graph: &mut ComputeGraph) -> Result<()> {
+        Err(Error::new(ErrorKind::UnsupportedBackendOp { backend: "opencl", op: "graph_compute" }))
+    }
+
+    fn memcpy_async(&self, _dst: *mut u8, _src: *const u8, _size: usize) -> Result<()> {
         Ok(())
     }
 

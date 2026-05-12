@@ -77,7 +77,7 @@ pub trait Backend {
         tensor: Tensor,
         data: *mut u8,
         offset: usize,
-        size: usize
+        size: usize,
     ) -> Result<()>;
 
     fn get_tensor_async(
@@ -85,7 +85,7 @@ pub trait Backend {
         tensor: Tensor,
         data: *mut u8,
         offset: usize,
-        size: usize
+        size: usize,
     ) -> Result<()>;
 
     fn copy_tensor_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
