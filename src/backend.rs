@@ -35,6 +35,16 @@ pub trait BackendBuffer: Send + Sync {
     fn clear(&self, value: u8) -> Result<()>;
 
     fn reset(&self) -> Result<()>;
+
+    fn init_tensor(&self, tensor: Tensor) -> Result<()>;
+
+    fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()>;
+
+    fn set_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
+
+    fn get_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
+
+    fn copy_tensor(&self, src: Tensor, dst: Tensor) -> Result<()>;
 }
 
 pub trait BackendBufferAllocator {
@@ -62,22 +72,12 @@ pub trait Backend {
 
     fn memcpy_async(&self, dst: *mut u8, src: *const u8, size: usize) -> Result<()>;
 
-    fn init_tensor(&self, tensor: Tensor) -> Result<()>;
-
-    fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()>;
-
-    fn set_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
-
-    fn get_tensor(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
-
-    fn copy_tensor(&self, src: Tensor, dst: Tensor) -> Result<()>;
-
     fn set_tensor_async(
         &self,
         tensor: Tensor,
         data: *mut u8,
         offset: usize,
-        size: usize,
+        size: usize
     ) -> Result<()>;
 
     fn get_tensor_async(
@@ -85,7 +85,7 @@ pub trait Backend {
         tensor: Tensor,
         data: *mut u8,
         offset: usize,
-        size: usize,
+        size: usize
     ) -> Result<()>;
 
     fn copy_tensor_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
