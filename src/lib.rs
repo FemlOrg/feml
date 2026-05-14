@@ -10,6 +10,7 @@ pub mod layout;
 mod memory_manager;
 mod object_pool;
 pub mod shape;
+mod storage;
 pub mod tensor;
 
 #[cfg(feature = "cpu")]

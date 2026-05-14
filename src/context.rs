@@ -11,7 +11,7 @@ use crate::error::Result;
 use crate::error::{Error, ErrorKind};
 use crate::object_pool::ObjectPool;
 use crate::shape::Shape;
-use crate::tensor::{Tensor, TensorId, TensorInner};
+use crate::tensor::{self, Tensor, TensorId, TensorInner};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -149,12 +149,23 @@ impl ContextInner {
         // Handle view source if provided
         if let Some(src) = view_src {
             // Verify source tensor exists in the context
-            println!("{}", src.get_tensor_id().as_usize());
             if !self.contain_tensor_impl(src.get_tensor_id()) {
                 return Err(Error::msg("view source tensor not found in context")
                     .context("in new_tensor_impl"));
             }
-            tensor_inner.storage = src.borrow().storage.clone();
+
+            tensor_inner.view_offset += src.borrow().view_offset;
+
+            src.borrow().view_tensor.map_or_else(
+                || {
+                    tensor_inner.self_storage = src.borrow().self_storage.clone();
+                    tensor_inner.view_tensor = Some(src.clone());
+                },
+                |src_view| {
+                    tensor_inner.self_storage = src_view.borrow().self_storage.clone();
+                    tensor_inner.view_tensor = Some(src_view.clone());
+                },
+            );
         }
 
         // Calculate strides with overflow checks

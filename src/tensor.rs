@@ -4,6 +4,7 @@ use crate::error::Result;
 use crate::layout::Layout;
 use crate::memory_manager::MemoryBlock;
 use crate::shape::Shape;
+use crate::storage::TensorStorage;
 use std::cell::RefCell;
 use std::sync::Arc;
 /// Unique identifier for tensors.
@@ -63,11 +64,13 @@ pub struct TensorInner {
     pub(crate) name: String,
     pub(crate) dtype: DataType,
     pub(crate) layout: Layout,
-    pub(crate) storage: Option<Arc<MemoryBlock>>,
+    pub(crate) self_storage: Option<TensorStorage>,
+    pub(crate) extra_storage: Option<TensorStorage>,
     pub(crate) src_tensor: TensorIdArray,
     pub(crate) length: usize,
     pub(crate) tensor_type: TensorType,
-    pub(crate) view_offs: usize,
+    pub(crate) view_tensor: Option<Tensor>,
+    pub(crate) view_offset: usize,
     pub(crate) op_type: TensorOpType,
 }
 
@@ -81,11 +84,13 @@ impl TensorInner {
             name: String::new(),
             dtype: DataType::U8,
             layout: Layout::default(),
-            storage: None,
+            self_storage: None,
+            extra_storage: None,
             src_tensor: TensorIdArray::new(),
             length: 0,
             tensor_type: TensorType::UNKNOWN,
-            view_offs: 0,
+            view_tensor: None,
+            view_offset: 0,
             op_type: TensorOpType::UNKNOWN,
         }
     }
@@ -150,11 +155,6 @@ impl Tensor {
         self.borrow().name.clone()
     }
 
-    pub fn set_data(&mut self, data: Arc<MemoryBlock>) -> &mut Self {
-        self.borrow_mut().storage = Some(data);
-        self
-    }
-
     pub fn set_op_type(&mut self, op_type: TensorOpType) -> &mut Self {
         self.borrow_mut().op_type = op_type;
         self
@@ -178,9 +178,6 @@ impl Tensor {
     }
 
     pub fn get_data(&self) -> Result<*mut u8> {
-        // self.storage
-        //     .as_ref()
-        //     .ok_or("Tensor storage is None".to_string())
         todo!("get_data");
     }
 }
