@@ -9,7 +9,6 @@ mod object_pool;
 pub mod shape;
 mod storage;
 pub mod tensor;
-mod storage;
 #[cfg(feature = "cpu")]
 pub mod cpu;
 #[cfg(feature = "opencl")]

@@ -11,7 +11,7 @@ use crate::error::Result;
 use crate::error::{Error, ErrorKind};
 use crate::object_pool::ObjectPool;
 use crate::shape::Shape;
-use crate::tensor::{self, Tensor, TensorId, TensorInner};
+use crate::tensor::{Tensor, TensorId, TensorInner};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -156,16 +156,13 @@ impl ContextInner {
 
             tensor_inner.view_offset += src.borrow().view_offset;
 
-            src.borrow().view_tensor.map_or_else(
-                || {
-                    tensor_inner.self_storage = src.borrow().self_storage.clone();
-                    tensor_inner.view_tensor = Some(src.clone());
-                },
-                |src_view| {
-                    tensor_inner.self_storage = src_view.borrow().self_storage.clone();
-                    tensor_inner.view_tensor = Some(src_view.clone());
-                },
-            );
+            if let Some(src_view) = src.borrow().view_tensor.clone() {
+                tensor_inner.self_storage = src_view.borrow().self_storage.clone();
+                tensor_inner.view_tensor = Some(src_view);
+            } else {
+                tensor_inner.self_storage = src.borrow().self_storage.clone();
+                tensor_inner.view_tensor = Some(src.clone());
+            }
         }
 
         // Calculate strides with overflow checks
