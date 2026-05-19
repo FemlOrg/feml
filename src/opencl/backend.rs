@@ -1,6 +1,11 @@
 use crate::backend::{
-    Backend, BackendBufferAllocator, BackendDevice, BackendDeviceCaps, BackendDeviceProps,
-    BackendDeviceType, BackendRegister,
+    Backend,
+    BackendBufferAllocator,
+    BackendDevice,
+    BackendDeviceCaps,
+    BackendDeviceProps,
+    BackendDeviceType,
+    BackendRegister,
 };
 use crate::compute_graph::ComputeGraph;
 use crate::error::{Error, ErrorKind, Result};
