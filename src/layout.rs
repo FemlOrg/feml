@@ -13,4 +13,30 @@ impl Layout {
     pub fn new(shape: Shape, stride: [usize; 4], start_offset: usize) -> Self {
         Self { shape, stride, start_offset }
     }
+
+    pub(crate) fn nbytes(&self, dtype: DataType) -> usize {
+        if self.shape.0.iter().any(|&dim| dim == 0) {
+            return 0;
+        }
+
+        let block_size = get_block_size(dtype);
+        let type_size = get_type_size(dtype);
+
+        if block_size == 1 {
+            type_size +
+                self.shape.0
+                    .iter()
+                    .zip(self.stride.iter())
+                    .map(|(&dim, &stride)| (dim - 1) * stride)
+                    .sum::<usize>()
+        } else {
+            (self.shape.0[0] * self.stride[0]) / block_size +
+                self.shape.0
+                    .iter()
+                    .zip(self.stride.iter())
+                    .skip(1)
+                    .map(|(&dim, &stride)| (dim - 1) * stride)
+                    .sum::<usize>()
+        }
+    }
 }
