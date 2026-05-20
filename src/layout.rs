@@ -23,15 +23,19 @@ impl Layout {
         let type_size = get_type_size(dtype);
 
         if block_size == 1 {
-            type_size +
-                self.shape.0
+            type_size
+                + self
+                    .shape
+                    .0
                     .iter()
                     .zip(self.stride.iter())
                     .map(|(&dim, &stride)| (dim - 1) * stride)
                     .sum::<usize>()
         } else {
-            (self.shape.0[0] * self.stride[0]) / block_size +
-                self.shape.0
+            (self.shape.0[0] * self.stride[0]) / block_size
+                + self
+                    .shape
+                    .0
                     .iter()
                     .zip(self.stride.iter())
                     .skip(1)

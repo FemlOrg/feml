@@ -5,4 +5,3 @@ pub struct Shape {
     dims: [usize; MAX_DIMS],
     rank: usize,
 }
-
