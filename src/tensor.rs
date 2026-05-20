@@ -1,5 +1,5 @@
-use crate::data_type::{DataType, TensorOpType, TensorType};
-use crate::defs::MAX_SRC;
+use crate::data_type::{ DataType, TensorOpType, TensorType, get_block_size, get_type_size };
+use crate::defs::{ MAX_DIMS, MAX_SRC };
 use crate::error::Result;
 use crate::layout::Layout;
 use crate::shape::Shape;
@@ -179,6 +179,10 @@ impl Tensor {
     pub fn get_data(&self) -> Result<*mut u8> {
         todo!("get_data");
     }
+
+    pub fn nbytes(&self) -> usize {
+        self.borrow().layout.nbytes(self.get_dtype())
+    }
 }
 
 impl AsRef<Tensor> for Tensor {
@@ -275,9 +279,11 @@ mod tests {
         tensor.set_length(100);
         assert_eq!(tensor.get_length(), 100);
 
-        for op_type in
-            [TensorOpType::UNKNOWN, TensorOpType::TensorOpView, TensorOpType::TensorOpMul]
-        {
+        for op_type in [
+            TensorOpType::UNKNOWN,
+            TensorOpType::TensorOpView,
+            TensorOpType::TensorOpMul,
+        ] {
             tensor.set_op_type(op_type);
             assert_eq!(tensor.get_op_type(), op_type);
         }

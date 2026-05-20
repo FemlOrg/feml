@@ -8,9 +8,10 @@ use crate::backend::{
     BackendRegister,
 };
 use crate::compute_graph::ComputeGraph;
-use crate::error::{Error, ErrorKind, Result};
+use crate::error::{ Error, ErrorKind, Result };
 use crate::tensor::Tensor;
 use ocl::ocl_core;
+use std::rc::Rc;
 use std::sync::OnceLock;
 
 static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
@@ -35,8 +36,6 @@ struct OpenclBackendRegister {
     devices: Vec<OpenclDevice>,
 }
 
-struct OpenclBackendBuffer;
-
 #[derive(Clone)]
 pub struct OpenclDevice {
     platform: ocl::Platform,
@@ -59,8 +58,26 @@ impl OpenclBackendContext {
 }
 
 impl BackendBuffer for OpenclBackendBuffer {
-    fn init_tensor(&self, tensor: Tensor) -> Result<()> {
-        // if tensor.
+    fn init_tensor(&self, tensor: Tensor, offset: usize) -> Result<()> {
+        match tensor.borrow().view_tensor.clone() {
+            Some(view_tensor) => {
+                let extra_storage = view_tensor
+                    .borrow()
+                    .extra_storage.as_ref()
+                    .ok_or_else(|| Error::msg("view extra_storage is None"))?
+                    .clone();
+
+                tensor.borrow_mut().extra_storage = Some(extra_storage);
+            }
+            None => {
+                tensor.borrow_mut().extra_storage = Some(TensorStorage::OpenCL {
+                    buffer: Rc::new(self),
+                    ocl_buffer_idx: 0,
+                    offset: offset,
+                    acutal_size: tensor.nbytes(),
+                });
+            }
+        }
         Ok(())
     }
 
@@ -69,7 +86,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         _tensor: Tensor,
         _value: u8,
         _offset: usize,
-        _size: usize,
+        _size: usize
     ) -> Result<()> {
         Ok(())
     }
@@ -79,7 +96,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         _tensor: Tensor,
         _data: *mut u8,
         _offset: usize,
-        _size: usize,
+        _size: usize
     ) -> Result<()> {
         Ok(())
     }
@@ -89,7 +106,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         _tensor: Tensor,
         _data: *mut u8,
         _offset: usize,
-        _size: usize,
+        _size: usize
     ) -> Result<()> {
         Ok(())
     }
@@ -125,7 +142,7 @@ impl Backend for OpenclBackend {
         _tensor: Tensor,
         _data: *mut u8,
         _offset: usize,
-        _size: usize,
+        _size: usize
     ) -> Result<()> {
         Ok(())
     }
@@ -135,7 +152,7 @@ impl Backend for OpenclBackend {
         _tensor: Tensor,
         _data: *mut u8,
         _offset: usize,
-        _size: usize,
+        _size: usize
     ) -> Result<()> {
         Ok(())
     }
@@ -231,13 +248,16 @@ impl OpenclBackendRegister {
     }
 
     pub fn opencl_device(&self, index: usize) -> Result<OpenclDevice> {
-        self.devices.get(index).cloned().ok_or_else(|| {
-            Error::new(ErrorKind::DeviceNotFound {
-                backend: "opencl",
-                index,
-                count: self.devices.len(),
+        self.devices
+            .get(index)
+            .cloned()
+            .ok_or_else(|| {
+                Error::new(ErrorKind::DeviceNotFound {
+                    backend: "opencl",
+                    index,
+                    count: self.devices.len(),
+                })
             })
-        })
     }
 
     fn try_new() -> Result<Self> {
@@ -258,8 +278,11 @@ impl OpenclBackendRegister {
                 continue;
             }
 
-            let context =
-                ocl::Context::builder().platform(platform.clone()).devices(&devices).build()?;
+            let context = ocl::Context
+                ::builder()
+                .platform(platform.clone())
+                .devices(&devices)
+                .build()?;
 
             for device in devices {
                 opencl_devices.push(OpenclDevice {
