@@ -149,12 +149,20 @@ impl ContextInner {
         // Handle view source if provided
         if let Some(src) = view_src {
             // Verify source tensor exists in the context
-            println!("{}", src.get_tensor_id().as_usize());
             if !self.contain_tensor_impl(src.get_tensor_id()) {
                 return Err(Error::msg("view source tensor not found in context")
                     .context("in new_tensor_impl"));
             }
-            tensor_inner.storage = src.borrow().storage.clone();
+
+            tensor_inner.view_offset += src.borrow().view_offset;
+
+            if let Some(src_view) = src.borrow().view_tensor.clone() {
+                tensor_inner.self_storage = src_view.borrow().self_storage.clone();
+                tensor_inner.view_tensor = Some(src_view);
+            } else {
+                tensor_inner.self_storage = src.borrow().self_storage.clone();
+                tensor_inner.view_tensor = Some(src.clone());
+            }
         }
 
         // Calculate strides with overflow checks

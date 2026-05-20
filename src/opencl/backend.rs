@@ -1,6 +1,11 @@
 use crate::backend::{
-    Backend, BackendBufferAllocator, BackendDevice, BackendDeviceCaps, BackendDeviceProps,
-    BackendDeviceType, BackendRegister,
+    Backend,
+    BackendBufferAllocator,
+    BackendDevice,
+    BackendDeviceCaps,
+    BackendDeviceProps,
+    BackendDeviceType,
+    BackendRegister,
 };
 use crate::compute_graph::ComputeGraph;
 use crate::error::{Error, ErrorKind, Result};
@@ -10,16 +15,20 @@ use std::sync::OnceLock;
 
 static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
 
+pub struct OpenclBackend {
+    device: OpenclDevice,
+    context: OpenclBackendContext,
+}
+
+pub struct OpenclBackendBuffer {
+    buffers: Vec<ocl::Buffer<u8>>,
+}
+
 struct OpenclBackendContext {
     device: ocl::Device,
     device_name: String,
     context: ocl::Context,
     queue: ocl::Queue,
-}
-
-pub struct OpenclBackend {
-    device: OpenclDevice,
-    context: OpenclBackendContext,
 }
 
 struct OpenclBackendRegister {
@@ -50,7 +59,8 @@ impl OpenclBackendContext {
 }
 
 impl BackendBuffer for OpenclBackendBuffer {
-    fn init_tensor(&self, _tensor: Tensor) -> Result<()> {
+    fn init_tensor(&self, tensor: Tensor) -> Result<()> {
+        // if tensor.
         Ok(())
     }
 
