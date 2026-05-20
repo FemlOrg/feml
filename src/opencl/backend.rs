@@ -11,6 +11,7 @@ use crate::compute_graph::ComputeGraph;
 use crate::error::{ Error, ErrorKind, Result };
 use crate::tensor::Tensor;
 use ocl::ocl_core;
+use std::rc::Rc;
 use std::sync::OnceLock;
 
 static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
@@ -35,8 +36,6 @@ struct OpenclBackendRegister {
     devices: Vec<OpenclDevice>,
 }
 
-struct OpenclBackendBuffer;
-
 #[derive(Clone)]
 pub struct OpenclDevice {
     platform: ocl::Platform,
@@ -59,17 +58,24 @@ impl OpenclBackendContext {
 }
 
 impl BackendBuffer for OpenclBackendBuffer {
-    fn init_tensor(&self, tensor: Tensor) -> Result<()> {
-        match tensor.borrow().view_tensor {
+    fn init_tensor(&self, tensor: Tensor, offset: usize) -> Result<()> {
+        match tensor.borrow().view_tensor.clone() {
             Some(view_tensor) => {
                 let extra_storage = view_tensor
                     .borrow()
                     .extra_storage.as_ref()
-                    .ok_or_else(|| Error::msg("view extra_storage is None"))?.clone();
+                    .ok_or_else(|| Error::msg("view extra_storage is None"))?
+                    .clone();
 
                 tensor.borrow_mut().extra_storage = Some(extra_storage);
             }
             None => {
+                tensor.borrow_mut().extra_storage = Some(TensorStorage::OpenCL {
+                    buffer: Rc::new(self),
+                    ocl_buffer_idx: 0,
+                    offset: offset,
+                    acutal_size: tensor.nbytes(),
+                });
             }
         }
         Ok(())

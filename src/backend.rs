@@ -36,7 +36,7 @@ pub trait BackendBuffer: Send + Sync {
 
     fn reset(&self) -> Result<()>;
 
-    fn init_tensor(&self, tensor: Tensor) -> Result<()>;
+    fn init_tensor(&self, tensor: Tensor, offset: usize) -> Result<()>;
 
     fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()>;
 
