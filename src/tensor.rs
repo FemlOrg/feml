@@ -2,7 +2,6 @@ use crate::data_type::{ DataType, TensorOpType, TensorType, get_block_size, get_
 use crate::defs::{ MAX_DIMS, MAX_SRC };
 use crate::error::Result;
 use crate::layout::Layout;
-use crate::memory_manager::MemoryBlock;
 use crate::shape::Shape;
 use crate::storage::TensorStorage;
 use std::cell::RefCell;
@@ -174,7 +173,7 @@ impl Tensor {
     }
 
     pub fn get_view_offset(&self) -> usize {
-        self.borrow().view_offs
+        self.borrow().view_offset
     }
 
     pub fn get_data(&self) -> Result<*mut u8> {
@@ -248,7 +247,7 @@ mod tests {
         assert_eq!(tensor.get_length(), 0);
         assert_eq!(tensor.get_tensor_type(), TensorType::UNKNOWN);
         assert_eq!(tensor.get_op_type(), TensorOpType::UNKNOWN);
-        assert_eq!(tensor.borrow().view_offs, 0);
+        assert_eq!(tensor.borrow().view_offset, 0);
     }
 
     #[test]
@@ -314,7 +313,7 @@ mod tests {
     #[test]
     fn test_tensor_data() {
         let tensor = TensorInner::default();
-        assert!(tensor.storage.is_none());
+        assert!(tensor.self_storage.is_none());
     }
 
     #[test]
@@ -446,10 +445,10 @@ mod tests {
     fn test_tensor_view_offs() {
         let mut tensor = TensorInner::default();
 
-        assert_eq!(tensor.view_offs, 0);
+        assert_eq!(tensor.view_offset, 0);
 
-        tensor.view_offs = 100;
-        assert_eq!(tensor.view_offs, 100);
+        tensor.view_offset = 100;
+        assert_eq!(tensor.view_offset, 100);
     }
 
     #[test]
