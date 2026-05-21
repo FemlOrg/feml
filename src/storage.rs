@@ -10,11 +10,13 @@ pub(crate) enum TensorStorage {
         buffer: Rc<dyn BackendBuffer>,
         offset: usize,
     },
-    #[cfg(feature = "cuda")] Cuda {
+    #[cfg(feature = "cuda")]
+    Cuda {
         buffer: Rc<dyn BackendBuffer>,
         offset: usize,
     },
-    #[cfg(feature = "opencl")] OpenCL {
+    #[cfg(feature = "opencl")]
+    OpenCL {
         buffer: Rc<dyn BackendBuffer>,
         ocl_buffer_idx: usize,
         offset: usize,
