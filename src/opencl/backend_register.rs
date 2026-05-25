@@ -72,7 +72,7 @@ impl OpenclBackendRegister {
                     device_name: device.name()?,
                     device_version: device.version().map_err(ocl::Error::from)?,
                     context: context.clone(),
-                    backend_ctx: OpenclBackendContext::default(),
+                    backend_ctx: None,
                 };
                 if ocl_device.init().is_ok() {
                     opencl_devices.push(ocl_device);

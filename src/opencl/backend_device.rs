@@ -1,4 +1,5 @@
 use super::backend_context::OpenclBackendContext;
+use super::backend_context::OpenclGpuFamlily;
 use ocl::core::CommandQueue;
 use ocl::ocl_core::OpenclVersion;
 use ocl::{CommandQueueProperties, Context, Device, Platform};
@@ -11,7 +12,7 @@ pub struct OpenclBackendDevice {
     pub(super) device_name: String,
     pub(super) device_version: OpenclVersion,
     pub(super) context: Context,
-    pub(super) backend_ctx: OpenclBackendContext,
+    pub(super) backend_ctx: Option<OpenclBackendContext>,
 }
 
 impl BackendDevice for OpenclBackendDevice {
@@ -65,21 +66,24 @@ impl BackendDevice for OpenclBackendDevice {
 }
 
 impl OpenclBackendDevice {
-    pub(super) fn init(&self) -> Result<()> {
-        self.backend_ctx = OpenclBackendContext::new(self);
-
-        self.backend_ctx.context = Some(self.context.clone());
-        self.backend_ctx.device = Some(self.device.clone());
-        self.backend_ctx.device_name = Some(self.device_name.clone());
-
-        let mut props = CommandQueueProperties::ON_DEVICE_DEFAULT;
-        #[cfg(feature = "opencl-profiling")]
-        {
-            props.profiling();
+    pub(super) fn init(&mut self) -> Result<()> {
+        if self.backend_ctx.is_some() {
+            return Ok(());
         }
+        self.backend_ctx = Some(OpenclBackendContext::new(self));
 
-        self.backend_ctx.queue = Some(ocl::Queue::new(&self.context, self.device, Some(props))?);
+        let mut ctx = &self.backend_ctx.unwrap();
 
+        if self.device_name == "Intel" {
+            ctx.gpu_family = OpenclGpuFamlily::Intel;
+            ctx.wave_size = 64;
+        } else if self.device_name == "Qualcomm" {
+            ctx.gpu_family = OpenclGpuFamlily::Intel;
+            ctx.wave_size = 64;
+        } else {
+            return Err(Error::msg(format!("Unsupported gpu {}", self.device_name))
+                .context("in OpenclBackendDevice::init"));
+        }
         Ok(())
     }
 }
