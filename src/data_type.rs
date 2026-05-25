@@ -60,3 +60,56 @@ pub enum TensorOpType {
     TensorOpMul,
     TensorNone,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_datatype_copy_clone() {
+        let dt1 = DataType::F32;
+        let dt2 = dt1;
+        let dt3 = dt1.clone();
+
+        assert_eq!(dt1, dt2);
+        assert_eq!(dt1, dt3);
+    }
+
+    #[test]
+    fn test_all_datatypes() {
+        let types = [
+            DataType::U8,
+            DataType::U32,
+            DataType::I16,
+            DataType::I32,
+            DataType::I64,
+            DataType::F16,
+            DataType::F32,
+            DataType::F64,
+        ];
+
+        for i in 0..types.len() {
+            for j in i + 1..types.len() {
+                assert_ne!(types[i], types[j]);
+            }
+        }
+
+        for dt in types.iter() {
+            let _ = format!("{:?}", dt);
+        }
+    }
+
+    #[test]
+    fn test_get_size() {
+        use crate::data_type::get_type_size;
+
+        assert_eq!(get_type_size(DataType::U8), 1);
+        assert_eq!(get_type_size(DataType::U32), 4);
+        assert_eq!(get_type_size(DataType::I16), 2);
+        assert_eq!(get_type_size(DataType::I32), 4);
+        assert_eq!(get_type_size(DataType::I64), 8);
+        assert_eq!(get_type_size(DataType::F16), 2);
+        assert_eq!(get_type_size(DataType::F32), 4);
+        assert_eq!(get_type_size(DataType::F64), 8);
+    }
+}

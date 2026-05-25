@@ -1,4 +1,3 @@
-#[cfg(feature = "opencl")]
 use std::rc::Rc;
 
 use crate::backend::BackendBuffer;
