@@ -1,9 +1,10 @@
 use super::backend_context::OpenclBackendContext;
 use super::backend_context::OpenclGpuFamlily;
 use ocl::core::CommandQueue;
+use ocl::core::DeviceInfoResult;
 use ocl::ocl_core::OpenclVersion;
 use ocl::{CommandQueueProperties, Context, Device, Platform};
-
+use tracing::info;
 #[derive(Clone)]
 pub struct OpenclBackendDevice {
     pub(super) platform: Platform,
@@ -84,6 +85,26 @@ impl OpenclBackendDevice {
             return Err(Error::msg(format!("Unsupported gpu {}", self.device_name))
                 .context("in OpenclBackendDevice::init"));
         }
+
+        let mut info = ocl::ocl_core::DeviceInfo::MaxMemAllocSize;
+        info!(
+            "Opencl: max mem alloc size {}",
+            to_stringocl::core::get_device_info(
+                ctx.device,
+                ocl::ocl_core::DeviceInfo::MaxMemAllocSize
+            )
+        );
+        info!(
+            "Opencl: device max image buffer size {}",
+            ocl::core::get_device_info(ctx.device, ocl::ocl_core::DeviceInfo::ImageMaxBufferSize);
+        );
+        info!(
+            "Opencl: device max workgropu size: {}",
+            ocl::core::get_device_info(ctx.device, ocl::ocl_core::DeviceInfo::MaxWorkGroupSize)
+        );
+
+        // TODO: add more device info
+
         Ok(())
     }
 }
