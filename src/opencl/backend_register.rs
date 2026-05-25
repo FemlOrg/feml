@@ -1,5 +1,5 @@
 use super::backend_device::OpenclBackendDevice;
-use crate::backend::BackendDevice;
+use crate::{backend::BackendDevice, opencl::backend_context::OpenclBackendContext};
 use std::sync::OnceLock;
 
 static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
@@ -65,14 +65,19 @@ impl OpenclBackendRegister {
                 ocl::Context::builder().platform(platform.clone()).devices(&devices).build()?;
 
             for device in devices {
-                opencl_devices.push(OpenclBackendDevice {
+                let mut ocl_device = OpenclBackendDevice {
                     platform: platform.clone(),
                     platform_name: platform.name()?,
                     device: device.clone(),
                     device_name: device.name()?,
                     device_version: device.version().map_err(ocl::Error::from)?,
                     context: context.clone(),
-                });
+                    backend_ctx: OpenclBackendContext::default(),
+                };
+                if ocl_device.init().is_ok() {
+                    opencl_devices.push(ocl_device);
+                }
+                opencl_devices.push(ocl_device);
             }
         }
 
