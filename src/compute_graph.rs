@@ -163,17 +163,18 @@ impl ComputeGraph {
 mod tests {
     use super::*;
     use crate::data_type::DataType;
+    use crate::shape;
     use crate::shape::Shape;
 
     fn new_tensor_in_context() -> (Context, TensorId) {
         let mut ctx = Context::builder().tensor_pool_capacity(8).build();
-        let shape = Shape([2, 2, 1, 1]);
+        let shape = shape![2, 2, 1, 1];
         let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
         (ctx, tensor.get_tensor_id())
     }
 
     fn new_test_tensor(ctx: &mut Context) -> crate::tensor::Tensor {
-        let shape = Shape([2, 2, 1, 1]);
+        let shape = shape![2, 2, 1, 1];
         ctx.new_tensor(DataType::F32, &shape).unwrap()
     }
 

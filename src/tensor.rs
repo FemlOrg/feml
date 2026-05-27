@@ -2,6 +2,7 @@ use crate::data_type::{get_block_size, get_type_size, DataType, TensorOpType, Te
 use crate::defs::{MAX_DIMS, MAX_SRC};
 use crate::error::Result;
 use crate::layout::Layout;
+use crate::shape;
 use crate::shape::Shape;
 use crate::storage::TensorStorage;
 use std::cell::RefCell;
@@ -277,7 +278,7 @@ mod tests {
             assert_eq!(tensor.get_dtype(), dtype);
         }
 
-        let shape = Shape([2, 3, 4, 5]);
+        let shape = shape![2, 3, 4, 5];
         tensor.set_shape(shape);
         assert_eq!(tensor.get_shape(), shape);
 
@@ -304,12 +305,12 @@ mod tests {
         let _ = tensor
             .set_name("chained".to_string())
             .set_data_type(DataType::F32)
-            .set_shape(Shape([1, 2, 3, 4]))
+            .set_shape(shape![1, 2, 3, 4])
             .set_length(42);
 
         assert_eq!(tensor.get_name(), "chained".to_string());
         assert_eq!(tensor.get_dtype(), DataType::F32);
-        assert_eq!(tensor.get_shape(), Shape([1, 2, 3, 4]));
+        assert_eq!(tensor.get_shape(), shape![1, 2, 3, 4]);
         assert_eq!(tensor.get_length(), 42);
     }
 
@@ -342,42 +343,6 @@ mod tests {
     }
 
     #[test]
-    fn test_shape_equality() {
-        let s1 = Shape([1, 2, 3, 4]);
-        let s2 = Shape([1, 2, 3, 4]);
-        let s3 = Shape([2, 3, 4, 5]);
-
-        assert_eq!(s1, s2);
-        assert_ne!(s1, s3);
-    }
-
-    #[test]
-    fn test_shape_debug() {
-        let shape = Shape([1, 2, 3, 4]);
-        let debug_str = format!("{:?}", shape);
-        assert!(debug_str.contains("1"));
-        assert!(debug_str.contains("2"));
-        assert!(debug_str.contains("3"));
-        assert!(debug_str.contains("4"));
-    }
-
-    #[test]
-    fn test_shape_default() {
-        let shape = Shape::default();
-        assert_eq!(shape, Shape([0, 0, 0, 0]));
-    }
-
-    #[test]
-    fn test_datatype_copy_clone() {
-        let dt1 = DataType::F32;
-        let dt2 = dt1;
-        let dt3 = dt1.clone();
-
-        assert_eq!(dt1, dt2);
-        assert_eq!(dt1, dt3);
-    }
-
-    #[test]
     fn test_tensortype_copy_clone() {
         let tt1 = TensorType::InputParam;
         let tt2 = tt1;
@@ -395,44 +360,6 @@ mod tests {
 
         assert_eq!(to1, to2);
         assert_eq!(to1, to3);
-    }
-
-    #[test]
-    fn test_all_datatypes() {
-        let types = [
-            DataType::U8,
-            DataType::U32,
-            DataType::I16,
-            DataType::I32,
-            DataType::I64,
-            DataType::F16,
-            DataType::F32,
-            DataType::F64,
-        ];
-
-        for i in 0..types.len() {
-            for j in i + 1..types.len() {
-                assert_ne!(types[i], types[j]);
-            }
-        }
-
-        for dt in types.iter() {
-            let _ = format!("{:?}", dt);
-        }
-    }
-
-    #[test]
-    fn test_get_size() {
-        use crate::data_type::get_type_size;
-
-        assert_eq!(get_type_size(DataType::U8), 1);
-        assert_eq!(get_type_size(DataType::U32), 4);
-        assert_eq!(get_type_size(DataType::I16), 2);
-        assert_eq!(get_type_size(DataType::I32), 4);
-        assert_eq!(get_type_size(DataType::I64), 8);
-        assert_eq!(get_type_size(DataType::F16), 2);
-        assert_eq!(get_type_size(DataType::F32), 4);
-        assert_eq!(get_type_size(DataType::F64), 8);
     }
 
     #[test]

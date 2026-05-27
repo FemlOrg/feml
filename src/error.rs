@@ -10,6 +10,7 @@
 //! @version 0.1.0
 
 use crate::data_type::DataType;
+use crate::shape;
 use crate::shape::Shape;
 use std::borrow::Cow;
 use std::fmt;
@@ -435,7 +436,7 @@ mod tests {
     // Test Display for UnexpectedNumberOfDims
     #[test]
     fn test_display_unexpected_dims() {
-        let shape = Shape([1, 3, 224, 224]);
+        let shape = shape![1, 3, 224, 224];
         let kind = ErrorKind::UnexpectedNumberOfDims { expected: 3, got: 4, shape };
         let s = format!("{kind}");
         assert!(s.contains("unexpected rank"));

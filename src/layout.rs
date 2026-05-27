@@ -1,4 +1,6 @@
 use crate::data_type::{get_block_size, get_type_size, DataType};
+use crate::data_type;
+use crate::data_type::DataType;
 use crate::shape::Shape;
 
 pub struct Layout {
@@ -16,27 +18,25 @@ impl Layout {
     }
 
     pub(crate) fn nbytes(&self, dtype: DataType) -> usize {
-        if self.shape.0.iter().any(|&dim| dim == 0) {
+        if self.shape.iter().any(|&dim| dim == 0) {
             return 0;
         }
 
-        let block_size = get_block_size(dtype);
-        let type_size = get_type_size(dtype);
+        let block_size = data_type::get_block_size(dtype);
+        let type_size = data_type::get_type_size(dtype);
 
         if block_size == 1 {
             type_size
                 + self
                     .shape
-                    .0
                     .iter()
                     .zip(self.stride.iter())
                     .map(|(&dim, &stride)| (dim - 1) * stride)
                     .sum::<usize>()
         } else {
-            (self.shape.0[0] * self.stride[0]) / block_size
+            (self.shape[0] * self.stride[0]) / block_size
                 + self
                     .shape
-                    .0
                     .iter()
                     .zip(self.stride.iter())
                     .skip(1)
