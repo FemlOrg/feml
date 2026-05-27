@@ -127,7 +127,7 @@ impl ContextInner {
         view_src: Option<Tensor>,
     ) -> Result<Tensor> {
         // Validate shape: ensure no dimension is zero
-        if shape.0.iter().any(|&dim| dim == 0) {
+        if shape.iter().any(|&dim| dim == 0) {
             return Err(Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into()))
                 .context("in new_tensor_impl"));
         }
@@ -184,7 +184,7 @@ impl ContextInner {
         // Calculate remaining strides with overflow protection
         for i in 2..MAX_DIMS {
             let next_stride = tensor_inner.layout.stride[i - 1]
-                .checked_mul(tensor_inner.layout.shape.0[i - 1])
+                .checked_mul(tensor_inner.layout.shape[i - 1])
                 .ok_or_else(|| {
                     Error::msg("stride calculation overflow").context("in stride calculation")
                 })?;
@@ -291,6 +291,7 @@ impl Context {
 mod tests {
     use super::*;
     use crate::data_type::DataType;
+    use crate::shape;
     use crate::shape::Shape;
 
     #[test]
@@ -303,7 +304,7 @@ mod tests {
     #[test]
     fn test_new_tensor_success() {
         let mut ctx = Context::builder().tensor_pool_capacity(10).build();
-        let shape = Shape([2, 3, 4, 5]);
+        let shape = shape![2, 3, 4, 5];
         let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
         assert_eq!(tensor.borrow().dtype, DataType::F32);
         assert_eq!(tensor.borrow().layout.shape, shape);
@@ -313,7 +314,7 @@ mod tests {
     #[test]
     fn test_new_tensor_zero_dimension() {
         let mut ctx = Context::builder().tensor_pool_capacity(10).build();
-        let shape = Shape([0, 3, 4, 5]);
+        let shape = shape![0, 3, 4, 5];
         let result = ctx.new_tensor(DataType::F32, &shape);
         assert!(result.is_err());
         assert!(result.err().unwrap().to_string().contains("zero dimensions"));
@@ -322,7 +323,7 @@ mod tests {
     #[test]
     fn test_new_tensor_unsupported_dtype() {
         let mut ctx = Context::builder().tensor_pool_capacity(10).build();
-        let shape = Shape([2, 3, 4, 5]);
+        let shape = shape![2, 3, 4, 5];
         let result = ctx.new_tensor(DataType::U8, &shape);
         assert!(result.is_err());
         assert!(result.err().unwrap().to_string().contains("unsupported dtype"));
@@ -331,7 +332,7 @@ mod tests {
     #[test]
     fn test_new_tensor_view_success() {
         let mut ctx = Context::builder().tensor_pool_capacity(10).build();
-        let shape = Shape([2, 3, 4, 5]);
+        let shape = shape![2, 3, 4, 5];
         let src_tensor = ctx.new_tensor(DataType::I32, &shape).unwrap();
         assert!(ctx.contain_tensor(src_tensor.get_tensor_id()));
         let view_tensor = ctx.new_tensor_view(src_tensor.clone()).unwrap();
@@ -347,7 +348,7 @@ mod tests {
     fn test_new_tensor_view_invalid_source() {
         let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let mut other_ctx = Context::builder().tensor_pool_capacity(10).build();
-        let shape = Shape([2, 3, 4, 5]);
+        let shape = shape![2, 3, 4, 5];
         let src_tensor = other_ctx.new_tensor(DataType::F32, &shape).unwrap();
         let result = ctx.new_tensor_view(src_tensor);
         assert!(result.is_err());
