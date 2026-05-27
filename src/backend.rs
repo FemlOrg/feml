@@ -70,7 +70,7 @@ pub trait Backend {
 
     fn graph_compute(&self, graph: &mut ComputeGraph) -> Result<()>;
 
-    fn memcpy_async(&self, dst: [u8], src: [u8], size: usize) -> Result<()>;
+    fn memcpy_async(&self, dst: &mut [u8], src: &[u8], size: usize) -> Result<()>;
 
     fn set_tensor_async(
         &self,
@@ -102,7 +102,7 @@ pub trait BackendDevice: Send + Sync {
 
     fn props(&self) -> BackendDeviceProps;
 
-    fn init(&self, params: [u8]) -> Result<()>;
+    fn init(&self, params: &[u8]) -> Result<()>;
 
     fn supports_op(&self, tensor: Tensor) -> bool;
 

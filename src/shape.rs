@@ -87,3 +87,9 @@ mod tests {
         assert_eq!(shape, shape![0, 0, 0, 0]);
     }
 }
+
+impl Shape {
+    pub fn len(&self) -> usize {
+        self.dims[..self.rank].iter().product()
+    }
+}

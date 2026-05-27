@@ -125,7 +125,12 @@ impl Tensor {
     }
 
     pub fn set_shape(&mut self, shape: Shape) -> &mut Self {
-        self.borrow_mut().layout.shape = shape;
+        let length = shape.len();
+        {
+            let mut inner = self.borrow_mut();
+            inner.layout.shape = shape;
+            inner.length = length;
+        }
         self
     }
 
