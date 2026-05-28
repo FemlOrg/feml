@@ -40,9 +40,9 @@ pub trait BackendBuffer: Send + Sync {
 
     fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()>;
 
-    fn set_tensor(&self, tensor: Tensor, data: [u8], offset: usize, size: usize) -> Result<()>;
+    fn set_tensor(&self, tensor: Tensor, mut data: [u8], offset: usize, size: usize) -> Result<()>;
 
-    fn get_tensor(&self, tensor: Tensor, data: [u8], offset: usize, size: usize) -> Result<()>;
+    fn get_tensor(&self, tensor: Tensor, mut data: [u8], offset: usize, size: usize) -> Result<()>;
 
     fn copy_tensor(&self, src: Tensor, dst: Tensor) -> Result<()>;
 }
