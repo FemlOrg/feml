@@ -103,6 +103,9 @@ impl OpenclBackendDevice {
             ocl::core::get_device_info(ctx.device, ocl::ocl_core::DeviceInfo::MaxWorkGroupSize)
         );
 
+        // load cl kernels
+        ctx.load_cl_kernels();
+
         // TODO: add more device info
 
         Ok(())
