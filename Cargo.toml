@@ -4,15 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-cudarc = { version = "0.19.4", optional = true }
 ocl = { version = "0.19", optional = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+cuda-device = { git = "https://github.com/NVlabs/cuda-oxide.git" , optional = true}
+cuda-host = { git = "https://github.com/NVlabs/cuda-oxide.git", features = ["async"], optional = true }
+cuda-core = { git = "https://github.com/NVlabs/cuda-oxide.git" , optional = true}
+cuda-async = { git = "https://github.com/NVlabs/cuda-oxide.git" , optional = true}
+cuda-bindings = { git = "https://github.com/NVlabs/cuda-oxide.git" , optional = true}
 
 [features]
 default = ["cpu"]
 cpu = []
-cuda = ["cudarc"]
+cuda = ["cuda-device", "cuda-host", "cuda-core", "cuda-async", "cuda-bindings"]
 opencl = ["ocl"]
 backtrace = []
 opencl-profiling = ["opencl"]
