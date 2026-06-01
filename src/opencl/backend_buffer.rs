@@ -4,6 +4,7 @@ use crate::error::Error;
 use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
 use ocl::Buffer;
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -167,5 +168,13 @@ impl BackendBuffer for OpenclBackendBuffer {
 
     fn reset(&self) -> Result<()> {
         todo!("add context reset")
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

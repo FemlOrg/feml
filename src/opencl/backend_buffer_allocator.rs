@@ -30,5 +30,15 @@ impl BackendBufferAllocator for OpenclBackendBufferAllocator {
         usize::MAX
     }
 
-    fn alloc_size(&self, tensor: Tensor) -> Result<usize>;
+    fn alloc_size(&self, tensor: Tensor) -> Result<usize> {
+        Ok(tensor.nbytes())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }

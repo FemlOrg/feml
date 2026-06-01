@@ -1,9 +1,13 @@
 use super::backend_context::OpenclBackendContext;
 use super::backend_context::OpenclGpuFamlily;
+use crate::backend::BackendDevice;
 use ocl::core::CommandQueue;
 use ocl::core::DeviceInfoResult;
 use ocl::ocl_core::OpenclVersion;
 use ocl::{CommandQueueProperties, Context, Device, Platform};
+use std::any::Any;
+use std::cell::RefCell;
+use std::rc::Rc;
 use tracing::info;
 #[derive(Clone)]
 pub struct OpenclBackendDevice {
@@ -13,7 +17,7 @@ pub struct OpenclBackendDevice {
     pub(super) device_name: String,
     pub(super) device_version: OpenclVersion,
     pub(super) context: Context,
-    pub(super) backend_ctx: Option<OpenclBackendContext>,
+    pub(super) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
 }
 
 impl BackendDevice for OpenclBackendDevice {
@@ -49,7 +53,7 @@ impl BackendDevice for OpenclBackendDevice {
         }
     }
 
-    fn init_backend(&self, _params: *mut u8) -> Result<()> {
+    fn init_backend(&self, _params: &[u8]) -> Result<()> {
         Ok(())
     }
 
@@ -64,6 +68,14 @@ impl BackendDevice for OpenclBackendDevice {
     fn offload_op(&self, _tensor: Tensor) -> bool {
         false
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl OpenclBackendDevice {
@@ -71,7 +83,7 @@ impl OpenclBackendDevice {
         if self.backend_ctx.is_some() {
             return Ok(());
         }
-        self.backend_ctx = Some(OpenclBackendContext::new(self));
+        self.backend_ctx = Some(Rc::new(RefCell::new(OpenclBackendContext::new(self))));
 
         let mut ctx = &self.backend_ctx.unwrap();
 

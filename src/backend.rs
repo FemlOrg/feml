@@ -2,6 +2,8 @@ use crate::compute_graph::ComputeGraph;
 use crate::error::Result;
 use crate::opencl::backend_buffer_allocator::OpenclBackendBufferAllocator;
 use crate::tensor::Tensor;
+use std::any::Any;
+
 pub enum BackendDeviceType {
     Cpu,
     Gpu,
@@ -45,6 +47,10 @@ pub trait BackendBuffer: Send + Sync {
     fn get_tensor(&self, tensor: Tensor, mut data: [u8], offset: usize, size: usize) -> Result<()>;
 
     fn copy_tensor(&self, src: Tensor, dst: Tensor) -> Result<()>;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 pub trait BackendBufferAllocator {
@@ -59,6 +65,10 @@ pub trait BackendBufferAllocator {
     }
 
     fn alloc_size(&self, tensor: Tensor) -> Result<usize>;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 pub trait Backend {
@@ -96,6 +106,10 @@ pub trait Backend {
             Ok(Box::new(OpenclBackendBufferAllocator))
         }
     }
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 pub trait BackendDevice: Send + Sync {
@@ -109,13 +123,17 @@ pub trait BackendDevice: Send + Sync {
 
     fn props(&self) -> BackendDeviceProps;
 
-    fn init(&self, params: &[u8]) -> Result<()>;
+    fn init_backend(&self, params: &[u8]) -> Result<()>;
 
     fn supports_op(&self, tensor: Tensor) -> bool;
 
     fn supports_buffer_allocator(&self, buffer_allocator: &dyn BackendBufferAllocator) -> bool;
 
     fn offload_op(&self, tensor: Tensor) -> bool;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 pub trait BackendRegister: Send + Sync {
@@ -124,4 +142,8 @@ pub trait BackendRegister: Send + Sync {
     fn device_count(&self) -> usize;
 
     fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>>;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
