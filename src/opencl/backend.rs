@@ -1,10 +1,14 @@
+use crate::backend::Backend;
+
+use super::backend_context::OpenclBackendContext;
+use super::backend_device::OpenclBackendDevice;
 use super::backend_register::OpenclBackendRegister;
 
-static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
-
+use std::any::Any;
+use std::cell::RefCell;
+use std::rc::Rc;
 pub struct OpenclBackend {
-    device: OpenclDevice,
-    context: OpenclBackendContext,
+    context: Rc<RefCell<OpenclBackendContext>>,
 }
 
 impl Backend for OpenclBackend {
@@ -51,14 +55,22 @@ impl Backend for OpenclBackend {
     fn copy_tensor_async(&self, _src: Tensor, _dst: Tensor) -> Result<()> {
         Ok(())
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl OpenclBackend {
-    pub fn init() -> Result<Self> {
-        let reg = OpenclBackendRegister::init();
+    pub fn init() -> Result<Box<dyn Backend>> {
+        let reg =
+            OpenclBackendRegister::init().as_any().downcast_ref::<OpenclBackendRegister>().unwrap();
         let device = reg.opencl_device(0)?;
-        let context = OpenclBackendContext::new(&device)?;
 
-        Ok(Self { device, context })
+        Ok(Box::new(Self { context: device.backend_ctx.as_ref().unwrap().clone() }))
     }
 }

@@ -1,8 +1,12 @@
 use super::backend_device::OpenclBackendDevice;
-use crate::{backend::BackendDevice, opencl::backend_context::OpenclBackendContext};
+use crate::{
+    backend::{BackendDevice, BackendRegister},
+    error::{Error, ErrorKind, Result},
+};
+use std::any::Any;
 use std::sync::OnceLock;
 
-static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
+static OPENCL_BACKEND_REG: OnceLock<Box<dyn BackendRegister>> = OnceLock::new();
 
 pub(super) struct OpenclBackendRegister {
     devices: Vec<OpenclBackendDevice>,
@@ -20,21 +24,30 @@ impl BackendRegister for OpenclBackendRegister {
     fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>> {
         Ok(Box::new(self.opencl_device(index)?))
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl OpenclBackendRegister {
-    pub fn init() -> &'static Self {
+    pub fn init() -> &'static Box<dyn BackendRegister> {
         OPENCL_BACKEND_REG.get_or_init(|| {
-            Self::try_new().unwrap_or_else(|err| {
+            let reg = Self::try_new().unwrap_or_else(|err| {
                 eprintln!("opencl: failed to initialize backend register: {err}");
 
                 Self { devices: Vec::new() }
-            })
+            });
+            Box::new(reg) as Box<dyn BackendRegister>
         })
     }
 
-    pub fn opencl_device(&self, index: usize) -> Result<OpenclBackendDevice> {
-        self.devices.get(index).cloned().ok_or_else(|| {
+    pub fn opencl_device(&self, index: usize) -> Result<&OpenclBackendDevice> {
+        self.devices.get(index).ok_or_else(|| {
             Error::new(ErrorKind::DeviceNotFound {
                 backend: "opencl",
                 index,
