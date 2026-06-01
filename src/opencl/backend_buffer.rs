@@ -1,18 +1,26 @@
-use super::backend_device::OpenclBackendDevice;
+use super::backend_context::OpenclBackendContext;
 use crate::backend::BackendBuffer;
 use crate::error::Error;
 use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
 use ocl::Buffer;
+use std::cell::RefCell;
+use std::rc::Rc;
 
-pub(super) struct OpenclBuffer {
+pub struct OpenclBackendBuffer {
+    backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
     buffer: ocl::Buffer<u8>,
     size: usize,
 }
 
-pub struct OpenclBackendBuffer {
-    backend_device: Option<OpenclBackendDevice>,
-    buffers: Vec<OpenclBuffer>,
+impl OpenclBackendBuffer {
+    pub fn new(
+        backend_ctx: Rc<RefCell<OpenclBackendContext>>,
+        buffer: ocl::Buffer<u8>,
+        size: usize,
+    ) -> Self {
+        OpenclBackendBuffer { backend_ctx: Some(backend_ctx), buffer, size }
+    }
 }
 
 impl BackendBuffer for OpenclBackendBuffer {
@@ -31,7 +39,6 @@ impl BackendBuffer for OpenclBackendBuffer {
             None => {
                 tensor.borrow_mut().extra_storage = Some(TensorStorage::OpenCL {
                     buffer: Rc::new(self),
-                    ocl_buffer_idx: 0,
                     offset: offset,
                     acutal_size: tensor.nbytes(),
                 });
@@ -64,8 +71,8 @@ impl BackendBuffer for OpenclBackendBuffer {
             .as_ref()
             .ok_or_else(|| Error::msg("extra_storage is none"))?;
 
-        if let TensorStorage::OpenCL { ocl_buffer_idx, .. } = storage {
-            let buffer = &self.buffers[*ocl_buffer_idx].buffer;
+        if let TensorStorage::OpenCL { .. } = storage {
+            let buffer = &self.buffer;
             unsafe {
                 ocl::core::enqueue_write_buffer(
                     &cl_queue,
@@ -98,8 +105,8 @@ impl BackendBuffer for OpenclBackendBuffer {
             .as_ref()
             .ok_or_else(|| Error::msg("extra_storage is none"))?;
 
-        if let TensorStorage::OpenCL { ocl_buffer_idx, .. } = storage {
-            let buffer = &self.buffers[*ocl_buffer_idx].buffer;
+        if let TensorStorage::OpenCL { .. } = storage {
+            let buffer = &self.buffer;
             unsafe {
                 ocl::core::enqueue_read_buffer(
                     &cl_queue,
@@ -141,19 +148,17 @@ impl BackendBuffer for OpenclBackendBuffer {
         let cl_context = backend_ctx.unwrap().context;
         let cl_queue = backend_ctx.unwrap().queue;
 
-        for buf in self.buffers.iter() {
-            unsafe {
-                ocl::core::enqueue_fill_buffer(
-                    &cl_queue,
-                    buf.buffer,
-                    value,
-                    offset,
-                    buf.size,
-                    None::<ocl::core::Event>,
-                    None::<ocl::core::Event>,
-                    None,
-                )?;
-            }
+        unsafe {
+            ocl::core::enqueue_fill_buffer(
+                &cl_queue,
+                self.buffer,
+                value,
+                offset,
+                buf.size,
+                None::<ocl::core::Event>,
+                None::<ocl::core::Event>,
+                None,
+            )?;
         }
 
         cl_queue.finish();

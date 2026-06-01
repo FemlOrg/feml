@@ -1,7 +1,7 @@
 use crate::compute_graph::ComputeGraph;
 use crate::error::Result;
+use crate::opencl::backend_buffer_allocator::OpenclBackendBufferAllocator;
 use crate::tensor::Tensor;
-
 pub enum BackendDeviceType {
     Cpu,
     Gpu,
@@ -89,6 +89,13 @@ pub trait Backend {
     ) -> Result<()>;
 
     fn copy_tensor_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
+
+    fn create_buffer_allocator(&self) -> Result<Box<dyn BackendBufferAllocator>> {
+        #[cfg(feature = "opencl")]
+        {
+            Ok(Box::new(OpenclBackendBufferAllocator))
+        }
+    }
 }
 
 pub trait BackendDevice: Send + Sync {

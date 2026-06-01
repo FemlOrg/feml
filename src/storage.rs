@@ -17,7 +17,6 @@ pub(crate) enum TensorStorage {
     #[cfg(feature = "opencl")]
     OpenCL {
         buffer: Rc<dyn BackendBuffer>,
-        ocl_buffer_idx: usize,
         offset: usize,
         acutal_size: usize,
     },

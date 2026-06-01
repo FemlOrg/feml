@@ -1,9 +1,11 @@
+use super::backend_context::OpenclBackendContext;
+use super::backend_device::OpenclBackendDevice;
 use super::backend_register::OpenclBackendRegister;
 
 static OPENCL_BACKEND_REG: OnceLock<OpenclBackendRegister> = OnceLock::new();
 
 pub struct OpenclBackend {
-    device: OpenclDevice,
+    device: OpenclBackendDevice,
     context: OpenclBackendContext,
 }
 
