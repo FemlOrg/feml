@@ -1,13 +1,18 @@
+use super::backend::OpenclBackend;
+use super::backend_buffer_allocator::OpenclBackendBufferAllocator;
 use super::backend_context::OpenclBackendContext;
 use super::backend_context::OpenclGpuFamlily;
-use crate::backend::BackendDevice;
-use ocl::core::CommandQueue;
-use ocl::core::DeviceInfoResult;
+use crate::backend::{
+    Backend, BackendBuffer, BackendBufferAllocator, BackendDevice, BackendDeviceCaps,
+    BackendDeviceProps, BackendDeviceType,
+};
+use crate::data_type::TensorOpType;
+use crate::error::{Error, Result};
+use crate::tensor::Tensor;
 use ocl::ocl_core::OpenclVersion;
-use ocl::{CommandQueueProperties, Context, Device, Platform};
+use ocl::{Context, Device, Platform};
 use std::any::Any;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use tracing::info;
 #[derive(Clone)]
 pub struct OpenclBackendDevice {
@@ -17,7 +22,7 @@ pub struct OpenclBackendDevice {
     pub(super) device_name: String,
     pub(super) device_version: OpenclVersion,
     pub(super) context: Context,
-    pub(super) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
+    pub(super) backend_ctx: Option<Arc<Mutex<OpenclBackendContext>>>,
 }
 
 impl BackendDevice for OpenclBackendDevice {
@@ -30,7 +35,7 @@ impl BackendDevice for OpenclBackendDevice {
     }
 
     fn description(&self) -> &str {
-        "OpenCL device"
+        self.device_name.as_str()
     }
 
     fn device_type(&self) -> BackendDeviceType {
@@ -40,7 +45,7 @@ impl BackendDevice for OpenclBackendDevice {
     fn props(&self) -> BackendDeviceProps {
         BackendDeviceProps {
             name: "opencl",
-            description: "OpenCL device",
+            description: self.device_name.clone(),
             memory_free: 0,
             memory_total: 0,
             device_type: BackendDeviceType::Gpu,
@@ -53,20 +58,41 @@ impl BackendDevice for OpenclBackendDevice {
         }
     }
 
-    fn init_backend(&self, _params: &[u8]) -> Result<()> {
-        Ok(())
+    fn init_backend(&self) -> Result<Box<dyn Backend>> {
+        Ok(Box::new(OpenclBackend { context: self.backend_ctx.as_ref().unwrap().clone() }))
     }
 
-    fn supports_op(&self, _tensor: Tensor) -> bool {
-        false
+    fn supports_op(&self, tensor: Tensor) -> Result<bool> {
+        match tensor.get_op_type() {
+            TensorOpType::TensorOpMul => Ok(true),
+            _ => Ok(false),
+        }
     }
 
-    fn supports_buffer_allocator(&self, _buffer_allocator: &dyn BackendBufferAllocator) -> bool {
-        false
+    fn supports_buffer_allocator(
+        &self,
+        buffer_allocator: &dyn BackendBufferAllocator,
+    ) -> Result<bool> {
+        let ret = self.name() == "opencl"
+            && self.as_any().is::<OpenclBackendDevice>()
+            && buffer_allocator.as_any().is::<OpenclBackendBufferAllocator>();
+
+        Ok(ret)
     }
 
-    fn offload_op(&self, _tensor: Tensor) -> bool {
-        false
+    fn buffer_from_host_ptr(
+        &self,
+        ptr: &mut [u8],
+        size: usize,
+        max_tensor_size: usize,
+    ) -> Result<Box<dyn BackendBuffer>> {
+        Err(Error::msg(format!("opencl: not support buffer_from_host_ptr"))
+            .context("in OpenclBackendDevice::buffer_from_host_ptr"))
+    }
+
+    fn offload_op(&self, _tensor: Tensor) -> Result<bool> {
+        Err(Error::msg(format!("opencl: not support offload_op trait"))
+            .context("in OpenclBackendDevice::offload_op"))
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -83,42 +109,46 @@ impl OpenclBackendDevice {
         if self.backend_ctx.is_some() {
             return Ok(());
         }
-        self.backend_ctx = Some(Rc::new(RefCell::new(OpenclBackendContext::new(self))));
+        let ctx = Arc::new(Mutex::new(OpenclBackendContext::new(self)?));
 
-        let mut ctx = &self.backend_ctx.unwrap();
+        {
+            let mut guard = ctx.lock().unwrap();
 
-        if self.device_name == "Intel" {
-            ctx.gpu_family = OpenclGpuFamlily::Intel;
-            ctx.wave_size = 64;
-        } else if self.device_name == "Qualcomm" {
-            ctx.gpu_family = OpenclGpuFamlily::Intel;
-            ctx.wave_size = 64;
-        } else {
-            return Err(Error::msg(format!("Unsupported gpu {}", self.device_name))
-                .context("in OpenclBackendDevice::init"));
+            if self.device_name == "Intel" {
+                guard.gpu_family = OpenclGpuFamlily::Intel;
+                guard.wave_size = 64;
+            } else if self.device_name == "Qualcomm" {
+                guard.gpu_family = OpenclGpuFamlily::Intel;
+                guard.wave_size = 64;
+            } else {
+                return Err(Error::msg(format!("Unsupported gpu {}", self.device_name))
+                    .context("in OpenclBackendDevice::init"));
+            }
+
+            let max_alloc = ocl::core::get_device_info(
+                guard.device,
+                ocl::ocl_core::DeviceInfo::MaxMemAllocSize,
+            )
+            .map_err(|e| Error::msg(format!("Failed to get device info: {}", e)))?;
+            info!("Opencl: max mem alloc size {}", max_alloc);
+            let max_img_buf = ocl::core::get_device_info(
+                guard.device,
+                ocl::ocl_core::DeviceInfo::ImageMaxBufferSize,
+            )
+            .map_err(|e| Error::msg(format!("Failed to get device info: {}", e)))?;
+            info!("Opencl: device max image buffer size {}", max_img_buf);
+            let max_workgroup = ocl::core::get_device_info(
+                guard.device,
+                ocl::ocl_core::DeviceInfo::MaxWorkGroupSize,
+            )
+            .map_err(|e| Error::msg(format!("Failed to get device info: {}", e)))?;
+            info!("Opencl: device max workgroup size: {}", max_workgroup);
+
+            guard.load_cl_kernels()?;
+            drop(guard);
         }
 
-        let mut info = ocl::ocl_core::DeviceInfo::MaxMemAllocSize;
-        info!(
-            "Opencl: max mem alloc size {}",
-            to_stringocl::core::get_device_info(
-                ctx.device,
-                ocl::ocl_core::DeviceInfo::MaxMemAllocSize
-            )
-        );
-        info!(
-            "Opencl: device max image buffer size {}",
-            ocl::core::get_device_info(ctx.device, ocl::ocl_core::DeviceInfo::ImageMaxBufferSize);
-        );
-        info!(
-            "Opencl: device max workgropu size: {}",
-            ocl::core::get_device_info(ctx.device, ocl::ocl_core::DeviceInfo::MaxWorkGroupSize)
-        );
-
-        // load cl kernels
-        ctx.load_cl_kernels();
-
-        // TODO: add more device info
+        self.backend_ctx = Some(ctx);
 
         Ok(())
     }

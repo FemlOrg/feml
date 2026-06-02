@@ -35,7 +35,7 @@ impl BackendDevice for CpuBackendDevice {
     fn props(&self) -> BackendDeviceProps {
         BackendDeviceProps {
             name: "cpu",
-            description: "CPU device",
+            description: "CPU device".to_string(),
             memory_free: 0,
             memory_total: 0,
             device_type: BackendDeviceType::Cpu,

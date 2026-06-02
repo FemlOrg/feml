@@ -1,15 +1,19 @@
 use super::backend_buffer::OpenclBackendBuffer;
 use super::backend_context::OpenclBackendContext;
+use crate::backend::BackendBuffer;
 use crate::backend::BackendBufferAllocator;
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::error::{Error, Result};
+use crate::tensor::Tensor;
+use std::any::Any;
+
+use std::sync::{Arc, Mutex};
 pub(crate) struct OpenclBackendBufferAllocator {
-    backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
+    pub(super) backend_ctx: Option<Arc<Mutex<OpenclBackendContext>>>,
 }
 impl BackendBufferAllocator for OpenclBackendBufferAllocator {
     fn allocate_buffer(&self, size: usize) -> Result<Box<dyn BackendBuffer>> {
         ocl::Buffer::<u8>::builder()
-            .queue(self.backend_ctx.as_ref().unwrap().queue().clone())
+            .queue(self.backend_ctx.as_ref().unwrap().lock().unwrap().queue.clone())
             .len(size)
             .build()
             .map(|buffer| {
@@ -19,19 +23,25 @@ impl BackendBufferAllocator for OpenclBackendBufferAllocator {
                     size,
                 )) as Box<dyn BackendBuffer>
             })
-            .map_err(|e| format!("Failed to allocate OpenCL buffer: {}", e).into())
+            .map_err(|e| Error::msg(format!("Failed to allocate OpenCL buffer: {}", e)))
     }
 
-    fn alignment(&self) -> usize {
-        std::mem::align_of::<usize>()
+    fn alignment(&self) -> Result<usize> {
+        Ok(self.backend_ctx.as_ref().unwrap().lock().unwrap().alignment)
     }
 
-    fn max_size(&self) -> usize {
-        usize::MAX
+    fn max_size(&self) -> Result<usize> {
+        Ok(self.backend_ctx.as_ref().unwrap().lock().unwrap().max_alloc_size)
     }
 
     fn alloc_size(&self, tensor: Tensor) -> Result<usize> {
-        Ok(tensor.nbytes())
+        Err(Error::msg(format!("opencl: alloc_size is not implemented yet"))
+            .context("in OpenclBackendBufferAllocator::alloc_size"))
+    }
+
+    fn is_host(&self) -> Result<bool> {
+        Err(Error::msg(format!("opencl: is_host is not implemented yet"))
+            .context("in OpenclBackendBufferAllocator::is_host"))
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -40,5 +50,11 @@ impl BackendBufferAllocator for OpenclBackendBufferAllocator {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+impl OpenclBackendBufferAllocator {
+    pub(super) fn new(backend_ctx: Arc<Mutex<OpenclBackendContext>>) -> Self {
+        OpenclBackendBufferAllocator { backend_ctx: Some(backend_ctx) }
     }
 }
