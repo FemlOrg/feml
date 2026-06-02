@@ -22,7 +22,7 @@ impl BackendRegister for OpenclBackendRegister {
     }
 
     fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>> {
-        Ok(Box::new(self.opencl_device(index)?))
+        Ok(Box::new(self.opencl_device(index)?.clone()))
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -90,7 +90,6 @@ impl OpenclBackendRegister {
                 if ocl_device.init().is_ok() {
                     opencl_devices.push(ocl_device);
                 }
-                opencl_devices.push(ocl_device);
             }
         }
 

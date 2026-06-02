@@ -1,8 +1,7 @@
 use super::backend_device::OpenclBackendDevice;
-use ocl::{
-    core::EmptyInfoResultError::Program, Context, Device, Kernel, OclCoreError::String, Queue,
-};
-use std::{collections::HashMap, hash::Hash};
+use crate::error::Result;
+use ocl::core::CommandQueueProperties;
+use std::collections::HashMap;
 
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -23,6 +22,8 @@ pub(super) struct OpenclBackendContext {
     pub(super) context: ocl::Context,
     pub(super) queue: ocl::Queue,
     pub(super) wave_size: i32,
+    pub(super) max_alloc_size: usize,
+    pub(super) alignment: usize,
     pub(super) gpu_family: OpenclGpuFamlily,
     pub(super) kernels: Option<HashMap<ClKernelId, ocl::Kernel>>,
     pub(super) programs: Option<HashMap<&'static str, ocl::Program>>,
@@ -40,8 +41,10 @@ impl OpenclBackendContext {
             device: device.device.clone(),
             device_name: device.device_name.clone(),
             context: device.context.clone(),
-            queue: ocl::Queue::new(&device.context, device.device, props)?,
+            queue: ocl::Queue::new(&device.context, device.device, Some(props))?,
             wave_size: 0,
+            max_alloc_size: 0,
+            alignment: 0,
             gpu_family: OpenclGpuFamlily::Unknown,
             kernels: None,
             programs: None,
@@ -60,8 +63,8 @@ impl OpenclBackendContext {
         if !programs.contains_key("kernels/mul.cl") {
             let program = ocl::Program::builder()
                 .src(include_str!("kernels/mul.cl"))
-                .devices(device.device)
-                .build(&device.context)?;
+                .devices(self.device)
+                .build(&self.context)?;
             programs.insert("mul", program.clone());
 
             let kernel_mul = ocl::Kernel::builder().program(&program).name("kernel_mul").build()?;
