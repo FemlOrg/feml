@@ -4,9 +4,10 @@ use crate::{
     error::{Error, ErrorKind, Result},
 };
 use std::any::Any;
-use std::sync::OnceLock;
+use std::sync::Once;
 
-static OPENCL_BACKEND_REG: OnceLock<Box<dyn BackendRegister>> = OnceLock::new();
+static INIT: Once = Once::new();
+static mut REG: Option<*const dyn BackendRegister> = None;
 
 pub(super) struct OpenclBackendRegister {
     devices: Vec<OpenclBackendDevice>,
@@ -35,15 +36,17 @@ impl BackendRegister for OpenclBackendRegister {
 }
 
 impl OpenclBackendRegister {
-    pub fn init() -> &'static Box<dyn BackendRegister> {
-        OPENCL_BACKEND_REG.get_or_init(|| {
-            let reg = Self::try_new().unwrap_or_else(|err| {
-                eprintln!("opencl: failed to initialize backend register: {err}");
-
-                Self { devices: Vec::new() }
+    pub fn init() -> &'static dyn BackendRegister {
+        unsafe {
+            INIT.call_once(|| {
+                let reg = Self::try_new().unwrap_or_else(|err| {
+                    eprintln!("opencl: failed to initialize backend register: {err}");
+                    Self { devices: Vec::new() }
+                });
+                REG = Some(Box::into_raw(Box::new(reg)));
             });
-            Box::new(reg) as Box<dyn BackendRegister>
-        })
+            &*REG.unwrap()
+        }
     }
 
     pub fn opencl_device(&self, index: usize) -> Result<&OpenclBackendDevice> {

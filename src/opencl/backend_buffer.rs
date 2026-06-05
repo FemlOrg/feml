@@ -3,18 +3,18 @@ use crate::backend::BackendBuffer;
 use crate::error::{Error, Result};
 use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
-use std::any::Any;
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-pub struct OpenclBackendBuffer {
-    backend_ctx: Option<Arc<Mutex<OpenclBackendContext>>>,
-    buffer: ocl::Buffer<u8>,
-    size: usize,
+pub(crate) struct OpenclBackendBuffer {
+    pub(crate) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
+    pub(crate) buffer: ocl::Buffer<u8>,
+    pub(crate) size: usize,
 }
 
 impl OpenclBackendBuffer {
     pub(super) fn new(
-        backend_ctx: Arc<Mutex<OpenclBackendContext>>,
+        backend_ctx: Rc<RefCell<OpenclBackendContext>>,
         buffer: ocl::Buffer<u8>,
         size: usize,
     ) -> Self {
@@ -24,94 +24,98 @@ impl OpenclBackendBuffer {
 
 impl BackendBuffer for OpenclBackendBuffer {
     fn init_tensor(&self, _tensor: Tensor, _offset: usize) -> Result<()> {
+        
         Ok(())
     }
 
     fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()> {
-        let ctx = self.backend_ctx.as_ref().unwrap().lock().unwrap();
+        let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
         let tensor_ref = tensor.borrow();
-        let storage = tensor_ref
-            .extra_storage
-            .as_ref()
-            .ok_or_else(|| Error::msg("extra_storage is none"))?;
+        let storage =
+            tensor_ref.extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is none"))?;
 
-        if let TensorStorage::OpenCL { .. } = storage {
-            let buffer = &self.buffer;
-            ocl::core::enqueue_fill_buffer(
+        if !matches!(storage, TensorStorage::Opencl { .. }) {
+            return Err(Error::msg("storage is not OpenCL type"));
+        }
+
+        ocl::core::enqueue_fill_buffer(
+            cl_queue,
+            &self.buffer,
+            value,
+            offset,
+            size,
+            None::<ocl::core::Event>,
+            None::<()>,
+            None,
+        )
+        .map_err(|e| Error::msg(format!("OpenCL fill buffer failed: {}", e)))?;
+        Ok(())
+    }
+
+    fn set_tensor(
+        &self,
+        tensor: Tensor,
+        data: &mut [u8],
+        offset: usize,
+        _size: usize,
+    ) -> Result<()> {
+        let ctx = self.backend_ctx.as_ref().unwrap().borrow();
+        let cl_queue = &ctx.queue;
+
+        let tensor_ref = tensor.borrow();
+        let storage =
+            tensor_ref.extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is none"))?;
+
+        if !matches!(storage, TensorStorage::Opencl { .. }) {
+            return Err(Error::msg("storage is not OpenCL type"));
+        }
+
+        unsafe {
+            ocl::core::enqueue_write_buffer(
                 cl_queue,
-                buffer,
-                value,
+                &self.buffer,
+                true,
                 offset,
-                size,
+                data,
                 None::<ocl::core::Event>,
                 None::<()>,
-                None,
             )
-            .map_err(|e| Error::msg(format!("OpenCL fill buffer failed: {}", e)))?;
-        } else {
-            return Err(Error::msg("storage is not OpenCL type"));
+            .map_err(|e| Error::msg(format!("OpenCL write buffer failed: {}", e)))?;
         }
         Ok(())
     }
 
-    fn set_tensor(&self, tensor: Tensor, data: &mut [u8], offset: usize, _size: usize) -> Result<()> {
-        let ctx = self.backend_ctx.as_ref().unwrap().lock().unwrap();
+    fn get_tensor(
+        &self,
+        tensor: Tensor,
+        data: &mut [u8],
+        offset: usize,
+        _size: usize,
+    ) -> Result<()> {
+        let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
         let tensor_ref = tensor.borrow();
-        let storage = tensor_ref
-            .extra_storage
-            .as_ref()
-            .ok_or_else(|| Error::msg("extra_storage is none"))?;
+        let storage =
+            tensor_ref.extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is none"))?;
 
-        if let TensorStorage::OpenCL { .. } = storage {
-            let buffer = &self.buffer;
-            unsafe {
-                ocl::core::enqueue_write_buffer(
-                    cl_queue,
-                    buffer,
-                    true,
-                    offset,
-                    data,
-                    None::<ocl::core::Event>,
-                    None::<()>,
-                )
-                .map_err(|e| Error::msg(format!("OpenCL write buffer failed: {}", e)))?;
-            }
-        } else {
+        if !matches!(storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
         }
-        Ok(())
-    }
 
-    fn get_tensor(&self, tensor: Tensor, data: &mut [u8], offset: usize, _size: usize) -> Result<()> {
-        let ctx = self.backend_ctx.as_ref().unwrap().lock().unwrap();
-        let cl_queue = &ctx.queue;
-
-        let tensor_ref = tensor.borrow();
-        let storage = tensor_ref
-            .extra_storage
-            .as_ref()
-            .ok_or_else(|| Error::msg("extra_storage is none"))?;
-
-        if let TensorStorage::OpenCL { .. } = storage {
-            let buffer = &self.buffer;
-            unsafe {
-                ocl::core::enqueue_read_buffer(
-                    cl_queue,
-                    buffer,
-                    true,
-                    offset,
-                    data,
-                    None::<ocl::core::Event>,
-                    None::<()>,
-                )
-                .map_err(|e| Error::msg(format!("OpenCL read buffer failed: {}", e)))?;
-            }
-        } else {
-            return Err(Error::msg("storage is not OpenCL type"));
+        unsafe {
+            ocl::core::enqueue_read_buffer(
+                cl_queue,
+                &self.buffer,
+                true,
+                offset,
+                data,
+                None::<ocl::core::Event>,
+                None::<()>,
+            )
+            .map_err(|e| Error::msg(format!("OpenCL read buffer failed: {}", e)))?;
         }
 
         Ok(())
@@ -137,7 +141,7 @@ impl BackendBuffer for OpenclBackendBuffer {
     }
 
     fn clear(&self, value: u8) -> Result<()> {
-        let ctx = self.backend_ctx.as_ref().unwrap().lock().unwrap();
+        let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
         ocl::core::enqueue_fill_buffer(

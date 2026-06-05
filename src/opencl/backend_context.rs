@@ -1,6 +1,6 @@
 use super::backend_device::OpenclBackendDevice;
-use crate::error::Result;
-use ocl::core::CommandQueueProperties;
+use crate::error::{Error, Result};
+use ocl::{core::CommandQueueProperties, Event, Kernel, SpatialDims};
 use std::collections::HashMap;
 
 #[repr(usize)]
@@ -77,6 +77,39 @@ impl OpenclBackendContext {
 
         self.kernels = Some(kernels);
         self.programs = Some(programs);
+
+        Ok(())
+    }
+
+    pub(super) fn get_kernel(&self, kernel_id: ClKernelId) -> Result<&mut ocl::Kernel> {
+        let ret = self.kernels.as_ref().unwrap().get_mut(&kernel_id).ok_or_else(|| {
+            Error::msg(format!("Kernel {:?} not found in OpenCL backend context", kernel_id))
+                .context("in OpenclBackendContext::get_kernel")
+        });
+
+        ret
+    }
+
+    pub(super) fn enqueue_ndrange_kernel(
+        &self,
+        kernel: &Kernel,
+        global_dims: &SpatialDims,
+        local_dims: &SpatialDims,
+    ) -> Result<()> {
+        kernel.set_default_global_work_size(*global_dims);
+        kernel.set_default_local_work_size(*local_dims);
+        #[cfg(feature = "opencl-profiling")]
+        {
+            let mut event = ocl::Event::empty();
+            unsafe {
+                kernel.cmd().enew(&mut event).enq()?;
+            }
+            event.wait_for()?;
+        }
+        #[cfg(not(feature = "opencl-profiling"))]
+        {
+            kernel.enq()?;
+        }
 
         Ok(())
     }

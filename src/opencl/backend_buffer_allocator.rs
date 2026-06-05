@@ -6,14 +6,15 @@ use crate::error::{Error, Result};
 use crate::tensor::Tensor;
 use std::any::Any;
 
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 pub(crate) struct OpenclBackendBufferAllocator {
-    pub(super) backend_ctx: Option<Arc<Mutex<OpenclBackendContext>>>,
+    pub(super) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
 }
 impl BackendBufferAllocator for OpenclBackendBufferAllocator {
     fn allocate_buffer(&self, size: usize) -> Result<Box<dyn BackendBuffer>> {
         ocl::Buffer::<u8>::builder()
-            .queue(self.backend_ctx.as_ref().unwrap().lock().unwrap().queue.clone())
+            .queue(self.backend_ctx.as_ref().unwrap().borrow().queue.clone())
             .len(size)
             .build()
             .map(|buffer| {
@@ -27,11 +28,11 @@ impl BackendBufferAllocator for OpenclBackendBufferAllocator {
     }
 
     fn alignment(&self) -> Result<usize> {
-        Ok(self.backend_ctx.as_ref().unwrap().lock().unwrap().alignment)
+        Ok(self.backend_ctx.as_ref().unwrap().borrow().alignment)
     }
 
     fn max_size(&self) -> Result<usize> {
-        Ok(self.backend_ctx.as_ref().unwrap().lock().unwrap().max_alloc_size)
+        Ok(self.backend_ctx.as_ref().unwrap().borrow().max_alloc_size)
     }
 
     fn alloc_size(&self, tensor: Tensor) -> Result<usize> {
@@ -54,7 +55,7 @@ impl BackendBufferAllocator for OpenclBackendBufferAllocator {
 }
 
 impl OpenclBackendBufferAllocator {
-    pub(super) fn new(backend_ctx: Arc<Mutex<OpenclBackendContext>>) -> Self {
+    pub(super) fn new(backend_ctx: Rc<RefCell<OpenclBackendContext>>) -> Self {
         OpenclBackendBufferAllocator { backend_ctx: Some(backend_ctx) }
     }
 }

@@ -11,9 +11,10 @@ use super::backend_context::OpenclBackendContext;
 use super::backend_register::OpenclBackendRegister;
 
 use std::any::Any;
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 pub struct OpenclBackend {
-    pub(super) context: Arc<Mutex<OpenclBackendContext>>,
+    pub(super) context: Rc<RefCell<OpenclBackendContext>>,
 }
 
 impl Backend for OpenclBackend {
@@ -22,7 +23,7 @@ impl Backend for OpenclBackend {
     }
 
     fn synchronize(&self) -> Result<()> {
-        let ctx = self.context.lock().unwrap();
+        let ctx = self.context.borrow();
         let event = ctx.queue.enqueue_marker(None::<()>)?;
         event.wait_for().map_err(ocl::Error::from)?;
         Ok(())
