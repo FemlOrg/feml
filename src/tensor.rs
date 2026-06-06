@@ -5,6 +5,7 @@ use crate::layout::Layout;
 use crate::shape;
 use crate::shape::Shape;
 use crate::storage::TensorStorage;
+use std::cell::Ref;
 use std::cell::RefCell;
 use std::sync::Arc;
 /// Unique identifier for tensors.
@@ -134,8 +135,12 @@ impl Tensor {
         self
     }
 
-    pub fn get_shape(&self) -> Shape {
-        self.borrow().layout.shape.clone()
+    pub fn get_shape(&self) -> Ref<'_, Shape> {
+        Ref::map(self.borrow(), |inner| &inner.layout.shape)
+    }
+
+    pub fn get_stride(&self) -> Ref<'_, [usize]> {
+        Ref::map(self.borrow(), |inner| inner.layout.stride.as_slice())
     }
 
     pub fn set_length(&mut self, length: usize) -> &mut Self {
@@ -188,6 +193,10 @@ impl Tensor {
 
     pub fn nbytes(&self) -> usize {
         self.borrow().layout.nbytes(self.get_dtype())
+    }
+
+    pub(crate) fn get_extra_storage(&self) -> Result<&TensorStorage> {
+        self.borrow().extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is None"))
     }
 }
 

@@ -12,7 +12,8 @@ use crate::tensor::Tensor;
 use ocl::ocl_core::OpenclVersion;
 use ocl::{Context, Device, Platform};
 use std::any::Any;
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 use tracing::info;
 #[derive(Clone)]
 pub struct OpenclBackendDevice {
@@ -22,7 +23,7 @@ pub struct OpenclBackendDevice {
     pub(super) device_name: String,
     pub(super) device_version: OpenclVersion,
     pub(super) context: Context,
-    pub(super) backend_ctx: Option<Arc<Mutex<OpenclBackendContext>>>,
+    pub(super) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
 }
 
 impl BackendDevice for OpenclBackendDevice {
@@ -109,10 +110,10 @@ impl OpenclBackendDevice {
         if self.backend_ctx.is_some() {
             return Ok(());
         }
-        let ctx = Arc::new(Mutex::new(OpenclBackendContext::new(self)?));
+        let ctx = Rc::new(RefCell::new(OpenclBackendContext::new(self)?));
 
         {
-            let mut guard = ctx.lock().unwrap();
+            let mut guard = ctx.borrow_mut();
 
             if self.device_name == "Intel" {
                 guard.gpu_family = OpenclGpuFamlily::Intel;

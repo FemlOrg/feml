@@ -27,7 +27,7 @@ pub struct BackendDeviceProps {
 }
 
 // BackendBuffer = ggml_backend_buffer_type + ggml_backend_buffer
-pub trait BackendBuffer: Send + Sync {
+pub trait BackendBuffer {
     fn as_ptr(&self) -> Result<*mut u8>;
 
     fn device(&self) -> Result<Box<dyn BackendDevice>>;
@@ -109,7 +109,7 @@ pub trait Backend {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-pub trait BackendDevice: Send + Sync {
+pub trait BackendDevice {
     fn name(&self) -> &str;
 
     fn memory(&self) -> (usize, usize);
@@ -143,7 +143,7 @@ pub trait BackendDevice: Send + Sync {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-pub trait BackendRegister: Send + Sync {
+pub trait BackendRegister {
     fn name(&self) -> &str;
 
     fn device_count(&self) -> usize;
