@@ -1,6 +1,6 @@
 use crate::backend::BackendBuffer;
+use crate::data_type::get_type_size;
 use crate::tensor::Tensor;
-use crate::data_type::{get_type_size};
 
 pub struct CpuBackendBuffer {
     buffers: Vec<u8>,

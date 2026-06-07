@@ -8,10 +8,10 @@ use std::sync::Arc;
 const CUDA_MAX_DEVICES: usize = 10;
 
 pub(super) struct CudaBackendContext {
-    current_device_id: Option<u32>,
-    current_context: Option<Arc<CudaContext>>,
-    current_stream: Option<Arc<CudaStream>>,
-    context: [Option<Arc<CudaContext>>; CUDA_MAX_DEVICES],
+    pub(super) current_device_id: Option<u32>,
+    pub(super) current_context: Option<Arc<CudaContext>>,
+    pub(super) current_stream: Option<Arc<CudaStream>>,
+    pub(super) context: [Option<Arc<CudaContext>>; CUDA_MAX_DEVICES],
 }
 
 impl CudaBackendContext {
@@ -59,5 +59,13 @@ impl CudaBackendContext {
     pub(super) fn device_malloc(&self, size: usize) -> Result<DeviceBuffer<u8>> {
         let buffer = DeviceBuffer::<u8>::zeroed(self.current_stream.unwrap().as_ref(), size)?;
         Ok(buffer)
+    }
+
+    pub(super) fn ensure_current_stream(&self) -> Result<Arc<CudaStream>> {
+        let device_id =
+            self.current_device_id.ok_or_else(|| Error::msg("current device id is none"))?;
+
+        self.set_device(device_id)?;
+        self.current_stream.as_ref().cloned().ok_or_else(|| Error::msg("current stream is none"))
     }
 }

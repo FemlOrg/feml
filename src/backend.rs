@@ -26,6 +26,13 @@ pub struct BackendDeviceProps {
     pub caps: BackendDeviceCaps,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum BackendBufferUsage {
+    Any,
+    Weights,
+    Compute,
+}
+
 // BackendBuffer = ggml_backend_buffer_type + ggml_backend_buffer
 pub trait BackendBuffer {
     fn as_ptr(&self) -> Result<*mut u8>;
@@ -49,6 +56,10 @@ pub trait BackendBuffer {
         -> Result<()>;
 
     fn copy_tensor(&self, src: Tensor, dst: Tensor) -> Result<()>;
+
+    fn get_usage(&self) -> Result<BackendBufferUsage>;
+
+    fn set_usage(&mut self, usage: BackendBufferUsage) -> Result<()>;
 
     fn as_any(&self) -> &dyn Any;
 

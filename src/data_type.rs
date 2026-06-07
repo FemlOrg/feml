@@ -45,6 +45,10 @@ pub fn get_block_size(dtype: DataType) -> usize {
     DATA_TYPE_TRAITS[dtype as usize].block_size
 }
 
+pub fn is_quantized(dtype: DataType) -> bool {
+    DATA_TYPE_TRAITS[dtype as usize].quantized
+}
+
 /// The different types of tensors.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum TensorType {
