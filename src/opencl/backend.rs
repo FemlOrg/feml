@@ -84,14 +84,12 @@ impl Backend for OpenclBackend {
 }
 
 impl OpenclBackend {
-    pub     fn init() -> Result<Box<dyn Backend>> {
+    pub fn init() -> Result<Box<dyn Backend>> {
         let reg =
             OpenclBackendRegister::init().as_any().downcast_ref::<OpenclBackendRegister>().unwrap();
         let device = reg.opencl_device(0)?;
 
-        Ok(Box::new(Self {
-            context: device.backend_ctx.as_ref().unwrap().clone(),
-        }))
+        Ok(Box::new(Self { context: device.backend_ctx.as_ref().unwrap().clone() }))
     }
 
     fn compute_forward(&self, ctx: &Context, tensor: &Tensor) -> Result<()> {

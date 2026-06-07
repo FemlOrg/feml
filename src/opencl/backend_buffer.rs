@@ -24,7 +24,6 @@ impl OpenclBackendBuffer {
 
 impl BackendBuffer for OpenclBackendBuffer {
     fn init_tensor(&self, _tensor: Tensor, _offset: usize) -> Result<()> {
-        
         Ok(())
     }
 

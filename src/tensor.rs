@@ -1,6 +1,6 @@
 use crate::data_type::{get_block_size, get_type_size, DataType, TensorOpType, TensorType};
 use crate::defs::{MAX_DIMS, MAX_SRC};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::layout::Layout;
 use crate::shape;
 use crate::shape::Shape;
@@ -197,6 +197,11 @@ impl Tensor {
 
     pub(crate) fn get_extra_storage(&self) -> Result<&TensorStorage> {
         self.borrow().extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is None"))
+    }
+
+    pub(crate) fn set_extra_storage(&mut self, extra_storage: Option<TensorStorage>) -> Result<()> {
+        self.borrow_mut().extra_storage = extra_storage;
+        Ok(())
     }
 }
 
