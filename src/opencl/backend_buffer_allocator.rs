@@ -1,7 +1,7 @@
 use super::backend_buffer::OpenclBackendBuffer;
 use super::backend_context::OpenclBackendContext;
-use crate::backend::BackendBuffer;
 use crate::backend::BackendBufferAllocator;
+use crate::backend::{BackendBuffer, BackendBufferUsage};
 use crate::error::{Error, Result};
 use crate::tensor::Tensor;
 use std::any::Any;
@@ -21,6 +21,7 @@ impl BackendBufferAllocator for OpenclBackendBufferAllocator {
                 Box::new(OpenclBackendBuffer::new(
                     self.backend_ctx.as_ref().unwrap().clone(),
                     buffer,
+                    BackendBufferUsage::Any,
                     size,
                 )) as Box<dyn BackendBuffer>
             })
