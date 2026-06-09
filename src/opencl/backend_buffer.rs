@@ -1,5 +1,5 @@
 use super::backend_context::OpenclBackendContext;
-use crate::backend::BackendBuffer;
+use crate::backend::{BackendBuffer, BackendBufferUsage};
 use crate::error::{Error, Result};
 use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
@@ -9,6 +9,7 @@ use std::rc::Rc;
 pub(crate) struct OpenclBackendBuffer {
     pub(crate) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
     pub(crate) buffer: ocl::Buffer<u8>,
+    pub(crate) usage: BackendBufferUsage,
     pub(crate) size: usize,
 }
 
@@ -16,14 +17,25 @@ impl OpenclBackendBuffer {
     pub(super) fn new(
         backend_ctx: Rc<RefCell<OpenclBackendContext>>,
         buffer: ocl::Buffer<u8>,
+        usage: BackendBufferUsage,
         size: usize,
     ) -> Self {
-        OpenclBackendBuffer { backend_ctx: Some(backend_ctx), buffer, size }
+        OpenclBackendBuffer { backend_ctx: Some(backend_ctx), buffer, usage, size }
     }
 }
 
 impl BackendBuffer for OpenclBackendBuffer {
-    fn init_tensor(&self, _tensor: Tensor, _offset: usize) -> Result<()> {
+    fn init_tensor(&self, mut tensor: Tensor, offset: usize) -> Result<()> {
+        tensor.borrow_mut().view_tensor.map_or_else(
+            || {
+                let storage = TensorStorage::new_opencl(Rc::new(*self), offset, tensor.nbytes());
+                tensor.set_extra_storage(Some(storage));
+            },
+            |view_tensor| {
+                let view_extra = view_tensor.get_extra_storage()?.clone();
+                tensor.set_extra_storage(Some(view_extra));
+            },
+        );
         Ok(())
     }
 
@@ -169,5 +181,14 @@ impl BackendBuffer for OpenclBackendBuffer {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn get_usage(&self) -> Result<BackendBufferUsage> {
+        Ok(self.usage)
+    }
+
+    fn set_usage(&mut self, usage: BackendBufferUsage) -> Result<()> {
+        self.usage = usage;
+        Ok(())
     }
 }
