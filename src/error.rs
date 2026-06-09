@@ -10,6 +10,7 @@
 //! @version 0.1.0
 
 use crate::data_type::DataType;
+#[cfg(test)]
 use crate::shape;
 use crate::shape::Shape;
 use std::borrow::Cow;

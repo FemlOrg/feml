@@ -3,11 +3,13 @@ use crate::backend::{BackendBuffer, BackendBufferUsage};
 use crate::error::{Error, Result};
 use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[derive(Clone)]
 pub(crate) struct OpenclBackendBuffer {
-    pub(crate) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
+    pub(super) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
     pub(crate) buffer: ocl::Buffer<u8>,
     pub(crate) usage: BackendBufferUsage,
     pub(crate) size: usize,
@@ -26,20 +28,22 @@ impl OpenclBackendBuffer {
 
 impl BackendBuffer for OpenclBackendBuffer {
     fn init_tensor(&self, mut tensor: Tensor, offset: usize) -> Result<()> {
-        tensor.borrow_mut().view_tensor.map_or_else(
-            || {
-                let storage = TensorStorage::new_opencl(Rc::new(*self), offset, tensor.nbytes());
-                tensor.set_extra_storage(Some(storage));
-            },
-            |view_tensor| {
+        let view_tensor_opt = tensor.borrow().view_tensor.clone();
+        match view_tensor_opt {
+            Some(view_tensor) => {
                 let view_extra = view_tensor.get_extra_storage()?.clone();
-                tensor.set_extra_storage(Some(view_extra));
-            },
-        );
+                tensor.set_extra_storage(Some(view_extra))?;
+            }
+            None => {
+                let storage =
+                    TensorStorage::new_opencl(Rc::new(self.clone()), offset, tensor.nbytes());
+                tensor.set_extra_storage(Some(storage))?;
+            }
+        }
         Ok(())
     }
 
-    fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()> {
+    fn fill(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()> {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
@@ -65,13 +69,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         Ok(())
     }
 
-    fn set_tensor(
-        &self,
-        tensor: Tensor,
-        data: &mut [u8],
-        offset: usize,
-        _size: usize,
-    ) -> Result<()> {
+    fn write(&self, tensor: Tensor, data: &mut [u8], offset: usize, _size: usize) -> Result<()> {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
@@ -98,13 +96,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         Ok(())
     }
 
-    fn get_tensor(
-        &self,
-        tensor: Tensor,
-        data: &mut [u8],
-        offset: usize,
-        _size: usize,
-    ) -> Result<()> {
+    fn read(&self, tensor: Tensor, data: &mut [u8], offset: usize, _size: usize) -> Result<()> {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
@@ -132,43 +124,9 @@ impl BackendBuffer for OpenclBackendBuffer {
         Ok(())
     }
 
-    fn copy_tensor(&self, _src: Tensor, _dst: Tensor) -> Result<()> {
+    fn copy(&self, _src: Tensor, _dst: Tensor) -> Result<()> {
         Err(Error::msg(format!("opencl: copy_tensor is not implemented yet"))
             .context("in OpenclBackendBuffer::copy_tensor"))
-    }
-
-    fn as_ptr(&self) -> Result<*mut u8> {
-        Ok(self.buffer.as_core().as_ptr() as *mut u8)
-    }
-
-    fn device(&self) -> Result<Box<dyn crate::backend::BackendDevice>> {
-        Err(Error::msg(format!("opencl: device is not implemented yet"))
-            .context("in OpenclBackendBuffer::device"))
-    }
-
-    fn get_base(&self) -> Result<*mut u8> {
-        Err(Error::msg(format!("opencl: get_base is not implemented yet"))
-            .context("in OpenclBackendBuffer::get_base"))
-    }
-
-    fn clear(&self, value: u8) -> Result<()> {
-        let ctx = self.backend_ctx.as_ref().unwrap().borrow();
-        let cl_queue = &ctx.queue;
-
-        ocl::core::enqueue_fill_buffer(
-            cl_queue,
-            &self.buffer,
-            value,
-            0,
-            self.size,
-            None::<ocl::core::Event>,
-            None::<()>,
-            None,
-        )
-        .map_err(|e| Error::msg(format!("OpenCL fill buffer failed: {}", e)))?;
-
-        cl_queue.finish()?;
-        Ok(())
     }
 
     fn reset(&self) -> Result<()> {
@@ -187,8 +145,11 @@ impl BackendBuffer for OpenclBackendBuffer {
         Ok(self.usage)
     }
 
-    fn set_usage(&mut self, usage: BackendBufferUsage) -> Result<()> {
-        self.usage = usage;
-        Ok(())
+    fn create_buffer(
+        &self,
+        size: usize,
+        usage: BackendBufferUsage,
+    ) -> Result<Box<dyn BackendBuffer>> {
+        todo!()
     }
 }
