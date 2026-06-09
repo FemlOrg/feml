@@ -3,7 +3,6 @@ use std::cmp::min;
 use super::super::backend::OpenclBackend;
 use super::super::backend_context::ClKernelId;
 use crate::error::{Error, Result};
-use crate::opencl::backend_buffer::OpenclBackendBuffer;
 use crate::tensor::Tensor;
 use ocl::SpatialDims;
 
@@ -13,8 +12,7 @@ pub(crate) fn mul(
     src1: &Tensor,
     dst: &Tensor,
 ) -> Result<()> {
-    let backend_ctx = backend.context.borrow_mut();
-    let kernel_mul = backend_ctx.get_kernel(ClKernelId::Mul)?;
+    let mut backend_ctx = backend.context.borrow_mut();
 
     let ne00 = src0.get_shape()[0];
     let ne01 = src0.get_shape()[1];
@@ -50,9 +48,9 @@ pub(crate) fn mul(
     let src1_storage = src1.get_extra_storage()?;
     let dst_storage = dst.get_extra_storage()?;
 
-    let offset0 = src0_storage.offset + src0.get_view_offset();
-    let offset1 = src1_storage.offset + src1.get_view_offset();
-    let offsetd = dst_storage.offset + dst.get_view_offset();
+    let offset0 = src0_storage.offset() + src0.get_view_offset();
+    let offset1 = src1_storage.offset() + src1.get_view_offset();
+    let offsetd = dst_storage.offset() + dst.get_view_offset();
 
     let src0_buffer = src0_storage
         .as_opencl()
@@ -64,47 +62,50 @@ pub(crate) fn mul(
         .as_opencl()
         .ok_or_else(|| Error::msg("destination storage is not OpenCL type"))?;
 
-    let mut idx = 0;
-    kernel_mul.set_arg(idx += 1, src0_buffer);
-    kernel_mul.set_arg(idx += 1, offset0);
-    kernel_mul.set_arg(idx += 1, src1_buffer);
-    kernel_mul.set_arg(idx += 1, offset1);
-    kernel_mul.set_arg(idx += 1, dst_buffer);
-    kernel_mul.set_arg(idx += 1, offsetd);
-    kernel_mul.set_arg(idx += 1, ne00);
-    kernel_mul.set_arg(idx += 1, ne01);
-    kernel_mul.set_arg(idx += 1, ne02);
-    kernel_mul.set_arg(idx += 1, ne03);
-    kernel_mul.set_arg(idx += 1, nb00);
-    kernel_mul.set_arg(idx += 1, nb01);
-    kernel_mul.set_arg(idx += 1, nb02);
-    kernel_mul.set_arg(idx += 1, nb03);
-    kernel_mul.set_arg(idx += 1, ne10);
-    kernel_mul.set_arg(idx += 1, ne11);
-    kernel_mul.set_arg(idx += 1, ne12);
-    kernel_mul.set_arg(idx += 1, ne13);
-    kernel_mul.set_arg(idx += 1, nb10);
-    kernel_mul.set_arg(idx += 1, nb11);
-    kernel_mul.set_arg(idx += 1, nb12);
-    kernel_mul.set_arg(idx += 1, nb13);
-    kernel_mul.set_arg(idx += 1, ne0);
-    kernel_mul.set_arg(idx += 1, ne1);
-    kernel_mul.set_arg(idx += 1, ne2);
-    kernel_mul.set_arg(idx += 1, ne3);
-    kernel_mul.set_arg(idx += 1, nb0);
-    kernel_mul.set_arg(idx += 1, nb1);
-    kernel_mul.set_arg(idx += 1, nb2);
-    kernel_mul.set_arg(idx += 1, nb3);
-
-    let mut nth = min(64, ne0);
+    let nth = min(64, ne0);
     let global_work_size: [usize; 3] = [ne01 * nth, ne02, ne03];
     let local_work_size: [usize; 3] = [nth, 1, 1];
     let global_work_dims = SpatialDims::from(global_work_size);
     let local_work_dims = SpatialDims::from(local_work_size);
 
-    kernel_mul.set_default_global_work_size(global_work_dims);
-    kernel_mul.set_default_local_work_size(local_work_dims);
+    backend_ctx.with_kernel(ClKernelId::Mul, |kernel| {
+        kernel.set_arg(0, &src0_buffer.buffer)?;
+        kernel.set_arg(1, offset0)?;
+        kernel.set_arg(2, &src1_buffer.buffer)?;
+        kernel.set_arg(3, offset1)?;
+        kernel.set_arg(4, &dst_buffer.buffer)?;
+        kernel.set_arg(5, offsetd)?;
+        kernel.set_arg(6, ne00)?;
+        kernel.set_arg(7, ne01)?;
+        kernel.set_arg(8, ne02)?;
+        kernel.set_arg(9, ne03)?;
+        kernel.set_arg(10, nb00)?;
+        kernel.set_arg(11, nb01)?;
+        kernel.set_arg(12, nb02)?;
+        kernel.set_arg(13, nb03)?;
+        kernel.set_arg(14, ne10)?;
+        kernel.set_arg(15, ne11)?;
+        kernel.set_arg(16, ne12)?;
+        kernel.set_arg(17, ne13)?;
+        kernel.set_arg(18, nb10)?;
+        kernel.set_arg(19, nb11)?;
+        kernel.set_arg(20, nb12)?;
+        kernel.set_arg(21, nb13)?;
+        kernel.set_arg(22, ne0)?;
+        kernel.set_arg(23, ne1)?;
+        kernel.set_arg(24, ne2)?;
+        kernel.set_arg(25, ne3)?;
+        kernel.set_arg(26, nb0)?;
+        kernel.set_arg(27, nb1)?;
+        kernel.set_arg(28, nb2)?;
+        kernel.set_arg(29, nb3)?;
 
-    backend_ctx.enqueue_ndrange_kernel(kernel_mul, &global_work_dims, &local_work_dims)?;
+        kernel.set_default_global_work_size(global_work_dims);
+        kernel.set_default_local_work_size(local_work_dims);
+
+        unsafe { kernel.enq()?; }
+        Ok(())
+    })?;
+
     Ok(())
 }

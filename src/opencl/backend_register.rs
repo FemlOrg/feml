@@ -99,3 +99,81 @@ impl OpenclBackendRegister {
         Ok(opencl_devices)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_returns_opencl() {
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        assert_eq!(reg.name(), "OpenCL");
+    }
+
+    #[test]
+    fn device_count_without_devices() {
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        assert_eq!(reg.device_count(), 0);
+    }
+
+    #[test]
+    fn device_out_of_bounds_returns_error() {
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        let result = reg.device(0);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.err().unwrap());
+        assert!(err_msg.contains("device 0 not found") || err_msg.contains("DeviceNotFound"));
+    }
+
+    #[test]
+    fn singleton_init_returns_same_pointer() {
+        let ptr1 = OpenclBackendRegister::init() as *const dyn BackendRegister;
+        let ptr2 = OpenclBackendRegister::init() as *const dyn BackendRegister;
+        assert_eq!(ptr1, ptr2);
+    }
+
+    #[test]
+    fn singleton_has_correct_name() {
+        let reg = OpenclBackendRegister::init();
+        assert_eq!(reg.name(), "OpenCL");
+    }
+
+    #[test]
+    fn as_any_roundtrip() {
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        let any = reg.as_any();
+        assert!(any.is::<OpenclBackendRegister>());
+    }
+
+    #[test]
+    fn as_any_downcast() {
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        let any = reg.as_any();
+        let downcast = any.downcast_ref::<OpenclBackendRegister>();
+        assert!(downcast.is_some());
+    }
+
+    #[test]
+    fn as_any_not_other_type() {
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        let any = reg.as_any();
+        assert!(!any.is::<String>());
+    }
+
+    #[test]
+    fn opencl_device_out_of_bounds() {
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        let result = reg.opencl_device(0);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.err().unwrap());
+        assert!(err_msg.contains("opencl") || err_msg.contains("0"));
+    }
+
+    #[test]
+    fn device_count_with_device_count() {
+        // We can't create real OpenclBackendDevice without hardware,
+        // but we can verify the method works with empty vec
+        let reg = OpenclBackendRegister { devices: Vec::new() };
+        assert_eq!(reg.device_count(), 0);
+    }
+}

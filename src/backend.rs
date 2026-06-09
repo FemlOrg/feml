@@ -26,7 +26,7 @@ pub struct BackendDeviceProps {
     pub caps: BackendDeviceCaps,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BackendBufferUsage {
     Any,
     Weights,

@@ -1,5 +1,5 @@
 use crate::defs::MAX_DIMS;
-use std::{collections::btree_set::Range, ops::Index};
+use std::ops::Index;
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Shape {
     pub(crate) dims: [usize; MAX_DIMS],

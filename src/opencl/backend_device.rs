@@ -17,10 +17,13 @@ use std::rc::Rc;
 use tracing::info;
 #[derive(Clone)]
 pub struct OpenclBackendDevice {
+    #[allow(dead_code)]
     pub(super) platform: Platform,
+    #[allow(dead_code)]
     pub(super) platform_name: String,
     pub(super) device: Device,
     pub(super) device_name: String,
+    #[allow(dead_code)]
     pub(super) device_version: OpenclVersion,
     pub(super) context: Context,
     pub(super) backend_ctx: Option<Rc<RefCell<OpenclBackendContext>>>,
@@ -83,9 +86,9 @@ impl BackendDevice for OpenclBackendDevice {
 
     fn buffer_from_host_ptr(
         &self,
-        ptr: &mut [u8],
-        size: usize,
-        max_tensor_size: usize,
+        _ptr: &mut [u8],
+        _size: usize,
+        _max_tensor_size: usize,
     ) -> Result<Box<dyn BackendBuffer>> {
         Err(Error::msg(format!("opencl: not support buffer_from_host_ptr"))
             .context("in OpenclBackendDevice::buffer_from_host_ptr"))

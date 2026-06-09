@@ -38,7 +38,7 @@ impl Backend for OpenclBackend {
         Ok(())
     }
 
-    fn memcpy_async(&self, dst: &mut [u8], src: &[u8], size: usize) -> Result<()> {
+    fn memcpy_async(&self, _dst: &mut [u8], _src: &[u8], _size: usize) -> Result<()> {
         Ok(())
     }
 
@@ -110,5 +110,36 @@ impl OpenclBackend {
                 .context("in OpenclBackend::compute_forward"))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_returns_opencl() {
+        let reg = OpenclBackendRegister::init();
+        assert!(reg.name() == "OpenCL");
+    }
+
+    #[test]
+    fn backend_init_returns_result() {
+        let result = OpenclBackend::init();
+        if let Err(e) = &result {
+            let msg = format!("{}", e);
+            assert!(!msg.is_empty());
+        }
+    }
+
+    #[test]
+    fn unsupported_backend_op_error_contains_backend_name() {
+        let err = Error::new(ErrorKind::UnsupportedBackendOp {
+            backend: "opencl",
+            op: "test_op",
+        });
+        let msg = format!("{}", err);
+        assert!(msg.contains("opencl"));
+        assert!(msg.contains("test_op"));
     }
 }

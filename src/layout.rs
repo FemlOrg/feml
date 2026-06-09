@@ -1,5 +1,5 @@
 use crate::data_type;
-use crate::data_type::{get_block_size, get_type_size, DataType};
+use crate::data_type::DataType;
 use crate::shape::Shape;
 
 pub struct Layout {

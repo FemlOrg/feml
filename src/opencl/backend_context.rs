@@ -1,6 +1,6 @@
 use super::backend_device::OpenclBackendDevice;
 use crate::error::{Error, Result};
-use ocl::{core::CommandQueueProperties, Event, Kernel, SpatialDims};
+use ocl::{core::CommandQueueProperties, Kernel};
 use std::collections::HashMap;
 
 #[repr(usize)]
@@ -10,6 +10,7 @@ pub enum ClKernelId {
     MulRow = 1,
 }
 
+#[allow(dead_code)]
 pub(super) enum OpenclGpuFamlily {
     Intel,
     Qualcomm,
@@ -18,6 +19,7 @@ pub(super) enum OpenclGpuFamlily {
 
 pub(super) struct OpenclBackendContext {
     pub(super) device: ocl::Device,
+    #[allow(dead_code)]
     pub(super) device_name: String,
     pub(super) context: ocl::Context,
     pub(super) queue: ocl::Queue,
@@ -31,6 +33,7 @@ pub(super) struct OpenclBackendContext {
 
 impl OpenclBackendContext {
     pub fn new(device: &OpenclBackendDevice) -> Result<Self> {
+        #[allow(unused_mut)]
         let mut props = CommandQueueProperties::ON_DEVICE_DEFAULT;
         #[cfg(feature = "opencl-profiling")]
         {
@@ -81,36 +84,64 @@ impl OpenclBackendContext {
         Ok(())
     }
 
-    pub(super) fn get_kernel(&self, kernel_id: ClKernelId) -> Result<&mut ocl::Kernel> {
-        let ret = self.kernels.as_ref().unwrap().get_mut(&kernel_id).ok_or_else(|| {
-            Error::msg(format!("Kernel {:?} not found in OpenCL backend context", kernel_id))
-                .context("in OpenclBackendContext::get_kernel")
-        });
+    pub(super) fn with_kernel<F>(&mut self, kernel_id: ClKernelId, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut Kernel) -> Result<()>,
+    {
+        let kernel = self
+            .kernels
+            .as_mut()
+            .unwrap()
+            .get_mut(&kernel_id)
+            .ok_or_else(|| {
+                Error::msg(format!(
+                    "Kernel {:?} not found in OpenCL backend context",
+                    kernel_id
+                ))
+                .context("in OpenclBackendContext::with_kernel")
+            })?;
+        f(kernel)
+    }
+}
 
-        ret
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kernel_id_values() {
+        assert_eq!(ClKernelId::Mul as usize, 0);
+        assert_eq!(ClKernelId::MulRow as usize, 1);
     }
 
-    pub(super) fn enqueue_ndrange_kernel(
-        &self,
-        kernel: &Kernel,
-        global_dims: &SpatialDims,
-        local_dims: &SpatialDims,
-    ) -> Result<()> {
-        kernel.set_default_global_work_size(*global_dims);
-        kernel.set_default_local_work_size(*local_dims);
-        #[cfg(feature = "opencl-profiling")]
-        {
-            let mut event = ocl::Event::empty();
-            unsafe {
-                kernel.cmd().enew(&mut event).enq()?;
-            }
-            event.wait_for()?;
-        }
-        #[cfg(not(feature = "opencl-profiling"))]
-        {
-            kernel.enq()?;
-        }
+    #[test]
+    fn kernel_id_debug_display() {
+        assert_eq!(format!("{:?}", ClKernelId::Mul), "Mul");
+        assert_eq!(format!("{:?}", ClKernelId::MulRow), "MulRow");
+    }
 
-        Ok(())
+    #[test]
+    fn kernel_id_equality() {
+        assert_eq!(ClKernelId::Mul, ClKernelId::Mul);
+        assert_ne!(ClKernelId::Mul, ClKernelId::MulRow);
+    }
+
+    #[test]
+    fn kernel_id_hash() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(ClKernelId::Mul);
+        set.insert(ClKernelId::MulRow);
+        set.insert(ClKernelId::Mul);
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn kernel_id_clone_copy() {
+        let id = ClKernelId::Mul;
+        let copy = id;
+        assert_eq!(id, copy);
+        let clone = id.clone();
+        assert_eq!(id, clone);
     }
 }

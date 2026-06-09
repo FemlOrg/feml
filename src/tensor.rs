@@ -1,7 +1,8 @@
-use crate::data_type::{get_block_size, get_type_size, DataType, TensorOpType, TensorType};
-use crate::defs::{MAX_DIMS, MAX_SRC};
+use crate::data_type::{DataType, TensorOpType, TensorType};
+use crate::defs::MAX_SRC;
 use crate::error::{Error, Result};
 use crate::layout::Layout;
+#[cfg(test)]
 use crate::shape;
 use crate::shape::Shape;
 use crate::storage::TensorStorage;
@@ -195,8 +196,12 @@ impl Tensor {
         self.borrow().layout.nbytes(self.get_dtype())
     }
 
-    pub(crate) fn get_extra_storage(&self) -> Result<&TensorStorage> {
-        self.borrow().extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is None"))
+    pub(crate) fn get_extra_storage(&self) -> Result<Ref<'_, TensorStorage>> {
+        let borrow = self.borrow();
+        if borrow.extra_storage.is_none() {
+            return Err(Error::msg("extra_storage is None"));
+        }
+        Ok(Ref::map(borrow, |inner| inner.extra_storage.as_ref().unwrap()))
     }
 
     pub(crate) fn set_extra_storage(&mut self, extra_storage: Option<TensorStorage>) -> Result<()> {
@@ -294,7 +299,7 @@ mod tests {
 
         let shape = shape![2, 3, 4, 5];
         tensor.set_shape(shape);
-        assert_eq!(tensor.get_shape(), shape);
+        assert_eq!(&*tensor.get_shape(), &shape);
 
         tensor.set_length(100);
         assert_eq!(tensor.get_length(), 100);
@@ -324,7 +329,7 @@ mod tests {
 
         assert_eq!(tensor.get_name(), "chained".to_string());
         assert_eq!(tensor.get_dtype(), DataType::F32);
-        assert_eq!(tensor.get_shape(), shape![1, 2, 3, 4]);
+        assert_eq!(&*tensor.get_shape(), &shape![1, 2, 3, 4]);
         assert_eq!(tensor.get_length(), 42);
     }
 
