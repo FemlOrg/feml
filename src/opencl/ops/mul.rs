@@ -12,7 +12,7 @@ pub(crate) fn mul(
     src1: &Tensor,
     dst: &Tensor,
 ) -> Result<()> {
-    let mut backend_ctx = backend.context.borrow_mut();
+    let mut backend_ctx = backend.backend_ctx.borrow_mut();
 
     let ne00 = src0.get_shape()[0];
     let ne01 = src0.get_shape()[1];
@@ -103,7 +103,9 @@ pub(crate) fn mul(
         kernel.set_default_global_work_size(global_work_dims);
         kernel.set_default_local_work_size(local_work_dims);
 
-        unsafe { kernel.enq()?; }
+        unsafe {
+            kernel.enq()?;
+        }
         Ok(())
     })?;
 

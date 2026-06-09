@@ -1,12 +1,12 @@
 use super::ops::mul::mul;
-use crate::backend::Backend;
+use crate::backend::{Backend, BackendBuffer, BackendBufferUsage};
 use crate::compute_graph::ComputeGraph;
 use crate::context::Context;
 use crate::data_type::TensorOpType;
 use crate::error::{Error, ErrorKind, Result};
 use crate::tensor::Tensor;
 
-use super::backend_buffer_allocator::OpenclBackendBufferAllocator;
+use super::backend_buffer::OpenclBackendBuffer;
 use super::backend_context::OpenclBackendContext;
 use super::backend_register::OpenclBackendRegister;
 
@@ -14,7 +14,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 pub struct OpenclBackend {
-    pub(super) context: Rc<RefCell<OpenclBackendContext>>,
+    pub(super) backend_ctx: Rc<RefCell<OpenclBackendContext>>,
 }
 
 impl Backend for OpenclBackend {
@@ -23,7 +23,7 @@ impl Backend for OpenclBackend {
     }
 
     fn synchronize(&self) -> Result<()> {
-        let ctx = self.context.borrow();
+        let ctx = self.backend_ctx.borrow();
         let event = ctx.queue.enqueue_marker(None::<()>)?;
         event.wait_for().map_err(ocl::Error::from)?;
         Ok(())
@@ -42,7 +42,7 @@ impl Backend for OpenclBackend {
         Ok(())
     }
 
-    fn set_tensor_async(
+    fn write_async(
         &self,
         _tensor: Tensor,
         _data: *mut u8,
@@ -53,7 +53,7 @@ impl Backend for OpenclBackend {
             .context("in OpenclBackend::set_tensor_async"))
     }
 
-    fn get_tensor_async(
+    fn read_async(
         &self,
         _tensor: Tensor,
         _data: *mut u8,
@@ -64,14 +64,25 @@ impl Backend for OpenclBackend {
             .context("in OpenclBackend::get_tensor_async"))
     }
 
-    fn copy_tensor_async(&self, _src: Tensor, _dst: Tensor) -> Result<()> {
+    fn copy_async(&self, _src: Tensor, _dst: Tensor) -> Result<()> {
         Err(Error::msg("opencl: copy_tensor_async is not implemented yet")
             .context("in OpenclBackend::copy_tensor_async"))
     }
 
-    fn create_buffer_allocator(&self) -> Result<Box<dyn crate::backend::BackendBufferAllocator>> {
-        Ok(Box::new(OpenclBackendBufferAllocator::new(self.context.clone()))
-            as Box<dyn crate::backend::BackendBufferAllocator>)
+    fn create_buffer(
+        &self,
+        size: usize,
+        usage: BackendBufferUsage,
+    ) -> Result<Box<dyn BackendBuffer>> {
+        ocl::Buffer::<u8>::builder()
+            .queue(self.backend_ctx.borrow().queue.clone())
+            .len(size)
+            .build()
+            .map(|buffer| {
+                Box::new(OpenclBackendBuffer::new(self.backend_ctx.clone(), buffer, usage, size))
+                    as Box<dyn BackendBuffer>
+            })
+            .map_err(|e| Error::msg(format!("Failed to allocate OpenCL buffer: {}", e)))
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -89,7 +100,7 @@ impl OpenclBackend {
             OpenclBackendRegister::init().as_any().downcast_ref::<OpenclBackendRegister>().unwrap();
         let device = reg.opencl_device(0)?;
 
-        Ok(Box::new(Self { context: device.backend_ctx.as_ref().unwrap().clone() }))
+        Ok(Box::new(Self { backend_ctx: device.backend_ctx.as_ref().unwrap().clone() }))
     }
 
     fn compute_forward(&self, ctx: &Context, tensor: &Tensor) -> Result<()> {
@@ -134,10 +145,7 @@ mod tests {
 
     #[test]
     fn unsupported_backend_op_error_contains_backend_name() {
-        let err = Error::new(ErrorKind::UnsupportedBackendOp {
-            backend: "opencl",
-            op: "test_op",
-        });
+        let err = Error::new(ErrorKind::UnsupportedBackendOp { backend: "opencl", op: "test_op" });
         let msg = format!("{}", err);
         assert!(msg.contains("opencl"));
         assert!(msg.contains("test_op"));

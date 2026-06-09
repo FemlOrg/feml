@@ -1,10 +1,9 @@
 use super::backend::OpenclBackend;
-use super::backend_buffer_allocator::OpenclBackendBufferAllocator;
 use super::backend_context::OpenclBackendContext;
 use super::backend_context::OpenclGpuFamlily;
+use crate::backend::DeviceInfo;
 use crate::backend::{
-    Backend, BackendBuffer, BackendBufferAllocator, BackendDevice, BackendDeviceCaps,
-    BackendDeviceProps, BackendDeviceType,
+    Backend, BackendBuffer, BackendDevice, BackendDeviceCaps, BackendDeviceProps, BackendDeviceType,
 };
 use crate::data_type::TensorOpType;
 use crate::error::{Error, Result};
@@ -30,58 +29,19 @@ pub struct OpenclBackendDevice {
 }
 
 impl BackendDevice for OpenclBackendDevice {
-    fn name(&self) -> &str {
-        "opencl"
-    }
-
-    fn memory(&self) -> (usize, usize) {
-        (0, 0)
-    }
-
-    fn description(&self) -> &str {
-        self.device_name.as_str()
-    }
-
-    fn device_type(&self) -> BackendDeviceType {
-        BackendDeviceType::Gpu
-    }
-
-    fn props(&self) -> BackendDeviceProps {
-        BackendDeviceProps {
-            name: "opencl",
-            description: self.device_name.clone(),
-            memory_free: 0,
-            memory_total: 0,
-            device_type: BackendDeviceType::Gpu,
-            caps: BackendDeviceCaps {
-                aysnc: false,
-                host_buffer: false,
-                buffer_from_host_ptr: false,
-                events: false,
-            },
-        }
+    fn info(&self) -> Result<crate::backend::DeviceInfo> {
+        todo!()
     }
 
     fn init_backend(&self) -> Result<Box<dyn Backend>> {
-        Ok(Box::new(OpenclBackend { context: self.backend_ctx.as_ref().unwrap().clone() }))
+        Ok(Box::new(OpenclBackend { backend_ctx: self.backend_ctx.as_ref().unwrap().clone() }))
     }
 
-    fn supports_op(&self, tensor: Tensor) -> Result<bool> {
-        match tensor.get_op_type() {
+    fn supports_op(&self, op_type: TensorOpType) -> Result<bool> {
+        match op_type {
             TensorOpType::TensorOpMul => Ok(true),
             _ => Ok(false),
         }
-    }
-
-    fn supports_buffer_allocator(
-        &self,
-        buffer_allocator: &dyn BackendBufferAllocator,
-    ) -> Result<bool> {
-        let ret = self.name() == "opencl"
-            && self.as_any().is::<OpenclBackendDevice>()
-            && buffer_allocator.as_any().is::<OpenclBackendBufferAllocator>();
-
-        Ok(ret)
     }
 
     fn buffer_from_host_ptr(
