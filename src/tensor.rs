@@ -208,6 +208,10 @@ impl Tensor {
         self.borrow_mut().extra_storage = extra_storage;
         Ok(())
     }
+
+    pub fn element_size(&self) -> usize {
+        get_type_size(self.get_dtype())
+    }
 }
 
 impl AsRef<Tensor> for Tensor {

@@ -69,12 +69,6 @@ pub trait BackendBuffer {
 
     fn get_usage(&self) -> Result<BackendBufferUsage>;
 
-    fn create_buffer(
-        &self,
-        size: usize,
-        usage: BackendBufferUsage,
-    ) -> Result<Box<dyn BackendBuffer>>;
-
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -138,6 +132,10 @@ pub trait BackendRegister {
     fn device_count(&self) -> usize;
 
     fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>>;
+
+    fn probe_devices(&self) -> Result<()>;
+
+    fn init_devices(&self) -> Result<()>;
 
     fn as_any(&self) -> &dyn Any;
 
