@@ -285,6 +285,21 @@ impl Context {
     pub fn mul_inplace(&mut self, src0: Tensor, src1: Tensor) -> Result<Tensor> {
         self.mul_impl(src0, src1, true)
     }
+
+    /// L1: no config
+    pub fn auto() -> Result<Self> {
+        todo!()
+    }
+
+    /// L2: set backend with backend name
+    pub fn with_backend(name: &str) -> Result<Self> {
+        todo!()
+    }
+
+    /// L3：set backend
+    pub fn new(backend: Box<dyn Backend>, buffer: Box<dyn BackendBuffer>) -> Result<Self> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
