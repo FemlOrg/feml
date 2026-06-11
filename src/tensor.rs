@@ -66,8 +66,7 @@ pub struct TensorInner {
     pub(crate) name: String,
     pub(crate) dtype: DataType,
     pub(crate) layout: Layout,
-    pub(crate) self_storage: Option<TensorStorage>,
-    pub(crate) extra_storage: Option<TensorStorage>,
+    pub(crate) storage: Option<TensorStorage>,
     pub(crate) src_tensor: TensorIdArray,
     pub(crate) length: usize,
     pub(crate) tensor_type: TensorType,
@@ -86,8 +85,7 @@ impl TensorInner {
             name: String::new(),
             dtype: DataType::U8,
             layout: Layout::default(),
-            self_storage: None,
-            extra_storage: None,
+            storage: None,
             src_tensor: TensorIdArray::new(),
             length: 0,
             tensor_type: TensorType::UNKNOWN,
@@ -196,16 +194,16 @@ impl Tensor {
         self.borrow().layout.nbytes(self.get_dtype())
     }
 
-    pub(crate) fn get_extra_storage(&self) -> Result<Ref<'_, TensorStorage>> {
+    pub(crate) fn get_storage(&self) -> Result<Ref<'_, TensorStorage>> {
         let borrow = self.borrow();
         if borrow.extra_storage.is_none() {
             return Err(Error::msg("extra_storage is None"));
         }
-        Ok(Ref::map(borrow, |inner| inner.extra_storage.as_ref().unwrap()))
+        Ok(Ref::map(borrow, |inner| inner.storage.as_ref().unwrap()))
     }
 
-    pub(crate) fn set_extra_storage(&mut self, extra_storage: Option<TensorStorage>) -> Result<()> {
-        self.borrow_mut().extra_storage = extra_storage;
+    pub(crate) fn set_storage(&mut self, storage: Option<TensorStorage>) -> Result<()> {
+        self.borrow_mut().storage = storage;
         Ok(())
     }
 

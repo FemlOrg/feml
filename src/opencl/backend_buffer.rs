@@ -31,13 +31,13 @@ impl BackendBuffer for OpenclBackendBuffer {
         let view_tensor_opt = tensor.borrow().view_tensor.clone();
         match view_tensor_opt {
             Some(view_tensor) => {
-                let view_extra = view_tensor.get_extra_storage()?.clone();
-                tensor.set_extra_storage(Some(view_extra))?;
+                let view_extra = view_tensor.get_storage()?.clone();
+                tensor.set_storage(Some(view_extra))?;
             }
             None => {
                 let storage =
                     TensorStorage::new_opencl(Rc::new(self.clone()), offset, tensor.nbytes());
-                tensor.set_extra_storage(Some(storage))?;
+                tensor.set_storage(Some(storage))?;
             }
         }
         Ok(())
@@ -48,8 +48,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         let cl_queue = &ctx.queue;
 
         let tensor_ref = tensor.borrow();
-        let storage =
-            tensor_ref.extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is none"))?;
+        let storage = tensor_ref.storage.as_ref().ok_or_else(|| Error::msg("storage is none"))?;
 
         if !matches!(storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
@@ -74,8 +73,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         let cl_queue = &ctx.queue;
 
         let tensor_ref = tensor.borrow();
-        let storage =
-            tensor_ref.extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is none"))?;
+        let storage = tensor_ref.storage.as_ref().ok_or_else(|| Error::msg("storage is none"))?;
 
         if !matches!(storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
@@ -101,8 +99,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         let cl_queue = &ctx.queue;
 
         let tensor_ref = tensor.borrow();
-        let storage =
-            tensor_ref.extra_storage.as_ref().ok_or_else(|| Error::msg("extra_storage is none"))?;
+        let storage = tensor_ref.storage.as_ref().ok_or_else(|| Error::msg("storage is none"))?;
 
         if !matches!(storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));

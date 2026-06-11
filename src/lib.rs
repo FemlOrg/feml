@@ -12,7 +12,7 @@ pub mod layout;
 mod object_pool;
 #[cfg(feature = "opencl")]
 pub mod opencl;
-pub mod runtime;
+pub mod registry;
 pub mod shape;
 mod storage;
 pub mod tensor;

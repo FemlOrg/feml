@@ -54,19 +54,19 @@ pub enum BackendBufferUsage {
 }
 
 pub trait BackendBuffer {
-    pub fn reset(&self) -> Result<()>;
+    fn reset(&self) -> Result<()>;
 
-    pub fn init_tensor(&self, tensor: Tensor, offset: usize) -> Result<()>;
+    fn init_tensor(&self, tensor: Tensor, offset: usize) -> Result<()>;
 
-    pub fn fill(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()>;
+    fn fill(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()>;
 
-    pub fn write(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize) -> Result<()>;
+    fn write(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize) -> Result<()>;
 
-    pub fn read(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize) -> Result<()>;
+    fn read(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize) -> Result<()>;
 
-    pub fn copy(&self, src: Tensor, dst: Tensor) -> Result<()>;
+    fn copy(&self, src: Tensor, dst: Tensor) -> Result<()>;
 
-    pub fn get_usage(&self) -> Result<BackendBufferUsage>;
+    fn get_usage(&self) -> Result<BackendBufferUsage>;
 
     fn as_any(&self) -> &dyn Any;
 
@@ -74,15 +74,15 @@ pub trait BackendBuffer {
 }
 
 pub trait Backend {
-    pub fn name(&self) -> &str;
+    fn name(&self) -> &str;
 
-    pub fn synchronize(&self) -> Result<()>;
+    fn synchronize(&self) -> Result<()>;
 
-    pub fn graph_compute(&self, ctx: &Context, graph: &mut ComputeGraph) -> Result<()>;
+    fn graph_compute(&self, ctx: &Context, graph: &mut ComputeGraph) -> Result<()>;
 
-    pub fn memcpy_async(&self, dst: &mut [u8], src: &[u8], size: usize) -> Result<()>;
+    fn memcpy_async(&self, dst: &mut [u8], src: &[u8], size: usize) -> Result<()>;
 
-    pub fn write_async(
+    fn write_async(
         &self,
         tensor: Tensor,
         data: *mut u8,
@@ -90,7 +90,7 @@ pub trait Backend {
         size: usize,
     ) -> Result<()>;
 
-    pub fn read_async(
+    fn read_async(
         &self,
         tensor: Tensor,
         data: *mut u8,
@@ -98,9 +98,9 @@ pub trait Backend {
         size: usize,
     ) -> Result<()>;
 
-    pub fn copy_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
+    fn copy_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
 
-    pub fn create_buffer(
+    fn create_buffer(
         &self,
         size: usize,
         usage: BackendBufferUsage,
@@ -112,15 +112,15 @@ pub trait Backend {
 }
 
 pub trait BackendDevice {
-    pub fn info(&self) -> Result<DeviceInfo>;
+    fn info(&self) -> Result<DeviceInfo>;
 
-    pub fn init_backend(&self) -> Result<Box<dyn Backend>>;
+    fn init_backend(&self) -> Result<Box<dyn Backend>>;
 
-    pub fn supports_op(&self, op_type: TensorOpType) -> Result<bool>;
+    fn supports_op(&self, op_type: TensorOpType) -> Result<bool>;
 
-    pub fn offload_op(&self, tensor: Tensor) -> Result<bool>;
+    fn offload_op(&self, tensor: Tensor) -> Result<bool>;
 
-    pub fn buffer_from_host_ptr(
+    fn buffer_from_host_ptr(
         &self,
         ptr: &mut [u8],
         size: usize,
@@ -133,11 +133,11 @@ pub trait BackendDevice {
 }
 
 pub trait BackendRegister {
-    pub fn name(&self) -> &str;
+    fn name(&self) -> &str;
 
-    pub fn device_count(&self) -> usize;
+    fn device_count(&self) -> usize;
 
-    pub fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>>;
+    fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>>;
 
     fn probe_devices(&self) -> Result<()>;
 

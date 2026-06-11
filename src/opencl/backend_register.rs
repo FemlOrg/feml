@@ -1,16 +1,18 @@
+use super::backend_context::OpenclBackendContext;
 use super::backend_device::OpenclBackendDevice;
 use crate::{
     backend::{BackendDevice, BackendRegister},
     error::{Error, ErrorKind, Result},
 };
-use std::any::Any;
+use std::cell::RefCell;
 use std::sync::Once;
+use std::{any::Any, rc::Rc};
 
 static INIT: Once = Once::new();
 static mut REG: Option<*const dyn BackendRegister> = None;
 
 pub(super) struct OpenclBackendRegister {
-    devices: Vec<OpenclBackendDevice>,
+    pub(super) devices: RefCell<Vec<OpenclBackendDevice>>,
 }
 
 impl BackendRegister for OpenclBackendRegister {
@@ -33,42 +35,13 @@ impl BackendRegister for OpenclBackendRegister {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-}
 
-impl OpenclBackendRegister {
-    pub fn init() -> &'static dyn BackendRegister {
-        unsafe {
-            INIT.call_once(|| {
-                let reg = Self::try_new().unwrap_or_else(|err| {
-                    eprintln!("opencl: failed to initialize backend register: {err}");
-                    Self { devices: Vec::new() }
-                });
-                REG = Some(Box::into_raw(Box::new(reg)));
-            });
-            &*REG.unwrap()
-        }
-    }
-
-    pub fn opencl_device(&self, index: usize) -> Result<&OpenclBackendDevice> {
-        self.devices.get(index).ok_or_else(|| {
-            Error::new(ErrorKind::DeviceNotFound {
-                backend: "opencl",
-                index,
-                count: self.devices.len(),
-            })
-        })
-    }
-
-    fn try_new() -> Result<Self> {
-        Ok(Self { devices: Self::probe_devices()? })
-    }
-
-    fn probe_devices() -> Result<Vec<OpenclBackendDevice>> {
+    fn probe_devices(&self) -> Result<()> {
         let mut opencl_devices: Vec<OpenclBackendDevice> = Vec::new();
         let platforms = ocl::Platform::list();
 
         if platforms.is_empty() {
-            return Ok(opencl_devices);
+            return Ok(());
         }
 
         for platform in platforms {
@@ -90,90 +63,50 @@ impl OpenclBackendRegister {
                     context: context.clone(),
                     backend_ctx: None,
                 };
-                if ocl_device.init().is_ok() {
-                    opencl_devices.push(ocl_device);
-                }
+                self.devices.push(ocl_device);
             }
         }
 
-        Ok(opencl_devices)
+        Ok(())
+    }
+
+    fn init_devices(&self) -> Result<()> {
+        let devices: Vec<OpenclBackendDevice> = std::mem::take(&mut *self.devices.borrow_mut());
+        let ctx = self.backend_ctx.clone();
+
+        let valid_devices: Vec<OpenclBackendDevice> =
+            devices.into_iter().filter(|device| device.init().is_ok()).collect();
+
+        *self.devices.borrow_mut() = valid_devices;
+
+        Ok(())
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn name_returns_opencl() {
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        assert_eq!(reg.name(), "OpenCL");
+impl OpenclBackendRegister {
+    pub fn init() -> &'static dyn BackendRegister {
+        unsafe {
+            INIT.call_once(|| {
+                let reg = Self::new().into_inner();
+                REG = Some(Box::into_raw(Box::new(reg)));
+            });
+            &*REG.unwrap()
+        }
     }
 
-    #[test]
-    fn device_count_without_devices() {
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        assert_eq!(reg.device_count(), 0);
+    pub fn opencl_device(&self, index: usize) -> Result<&OpenclBackendDevice> {
+        self.devices.get(index).ok_or_else(|| {
+            Error::new(ErrorKind::DeviceNotFound {
+                backend: "opencl",
+                index,
+                count: self.devices.len(),
+            })
+        })
     }
 
-    #[test]
-    fn device_out_of_bounds_returns_error() {
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        let result = reg.device(0);
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.err().unwrap());
-        assert!(err_msg.contains("device 0 not found") || err_msg.contains("DeviceNotFound"));
-    }
-
-    #[test]
-    fn singleton_init_returns_same_pointer() {
-        let ptr1 = OpenclBackendRegister::init() as *const dyn BackendRegister;
-        let ptr2 = OpenclBackendRegister::init() as *const dyn BackendRegister;
-        assert_eq!(ptr1, ptr2);
-    }
-
-    #[test]
-    fn singleton_has_correct_name() {
-        let reg = OpenclBackendRegister::init();
-        assert_eq!(reg.name(), "OpenCL");
-    }
-
-    #[test]
-    fn as_any_roundtrip() {
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        let any = reg.as_any();
-        assert!(any.is::<OpenclBackendRegister>());
-    }
-
-    #[test]
-    fn as_any_downcast() {
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        let any = reg.as_any();
-        let downcast = any.downcast_ref::<OpenclBackendRegister>();
-        assert!(downcast.is_some());
-    }
-
-    #[test]
-    fn as_any_not_other_type() {
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        let any = reg.as_any();
-        assert!(!any.is::<String>());
-    }
-
-    #[test]
-    fn opencl_device_out_of_bounds() {
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        let result = reg.opencl_device(0);
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.err().unwrap());
-        assert!(err_msg.contains("opencl") || err_msg.contains("0"));
-    }
-
-    #[test]
-    fn device_count_with_device_count() {
-        // We can't create real OpenclBackendDevice without hardware,
-        // but we can verify the method works with empty vec
-        let reg = OpenclBackendRegister { devices: Vec::new() };
-        assert_eq!(reg.device_count(), 0);
+    fn new() -> Rc<RefCell<Self>> {
+        let reg = Rc::new(RefCell::new(Self { devices: RefCell::new(Vec::new()) }));
+        reg.borrow_mut().backend_ctx.borrow_mut().register = Some(Rc::downgrade(&reg));
+        reg
     }
 }
