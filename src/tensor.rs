@@ -68,7 +68,6 @@ pub struct TensorInner {
     pub(crate) layout: Layout,
     pub(crate) storage: Option<TensorStorage>,
     pub(crate) src_tensor: TensorIdArray,
-    pub(crate) length: usize,
     pub(crate) tensor_type: TensorType,
     pub(crate) view_tensor: Option<Tensor>,
     pub(crate) view_offset: usize,
@@ -76,7 +75,7 @@ pub struct TensorInner {
 }
 
 #[derive(Clone)]
-pub struct Tensor(pub Arc<RefCell<TensorInner>>);
+pub struct Tensor(pub(crate) Arc<RefCell<TensorInner>>);
 
 impl TensorInner {
     pub(crate) fn default() -> Self {
@@ -87,7 +86,6 @@ impl TensorInner {
             layout: Layout::default(),
             storage: None,
             src_tensor: TensorIdArray::new(),
-            length: 0,
             tensor_type: TensorType::UNKNOWN,
             view_tensor: None,
             view_offset: 0,
@@ -101,30 +99,30 @@ impl Tensor {
         Tensor(Arc::new(RefCell::new(TensorInner::default())))
     }
 
-    pub fn set_tensor_id(&mut self, id: TensorId) -> &mut Self {
+    pub(crate) fn set_tensor_id(&mut self, id: TensorId) -> &mut Self {
         self.borrow_mut().id = id;
         self
     }
 
-    pub fn get_tensor_id(&self) -> TensorId {
+    pub(crate) fn tensor_id(&self) -> TensorId {
         self.borrow().id
     }
 
-    pub fn set_src_tensor(&mut self, src_tensor_id: TensorId) -> &mut Self {
+    pub(crate) fn set_src_tensor(&mut self, src_tensor_id: TensorId) -> &mut Self {
         self.borrow_mut().src_tensor.push(src_tensor_id);
         self
     }
 
-    pub fn get_src_tensor(&self) -> Vec<TensorId> {
+    pub(crate) fn src_tensor(&self) -> Vec<TensorId> {
         self.borrow().src_tensor.as_slice().to_vec()
     }
 
-    pub fn set_data_type(&mut self, dtype: DataType) -> &mut Self {
+    pub fn set_dtype(&self, dtype: DataType) -> &Self {
         self.borrow_mut().dtype = dtype;
         self
     }
 
-    pub fn set_shape(&mut self, shape: Shape) -> &mut Self {
+    pub fn set_shape(&self, shape: Shape) -> &Self {
         let length = shape.len();
         {
             let mut inner = self.borrow_mut();
@@ -134,67 +132,54 @@ impl Tensor {
         self
     }
 
-    pub fn get_shape(&self) -> Ref<'_, Shape> {
+    pub fn shape(&self) -> Ref<'_, Shape> {
         Ref::map(self.borrow(), |inner| &inner.layout.shape)
     }
 
-    pub fn get_stride(&self) -> Ref<'_, [usize]> {
+    pub fn stride(&self) -> Ref<'_, [usize]> {
         Ref::map(self.borrow(), |inner| inner.layout.stride.as_slice())
     }
 
-    pub fn set_length(&mut self, length: usize) -> &mut Self {
-        self.borrow_mut().length = length;
+    pub fn dtype(&self) -> DataType {
+        self.borrow().dtype
+    }
+
+    pub fn set_name(&self, name: impl Into<String>) -> &Self {
+        self.borrow_mut().name = name.into();
         self
     }
 
-    pub fn get_length(&self) -> usize {
-        self.borrow().length
+    pub fn name(&self) -> String {
+        self.borrow().name
     }
 
-    pub fn get_dtype(&self) -> DataType {
-        self.borrow().dtype.clone()
-    }
-
-    pub fn set_name(&mut self, name: String) -> &mut Self {
-        self.borrow_mut().name = name;
-        self
-    }
-
-    pub fn get_name(&self) -> String {
-        self.borrow().name.clone()
-    }
-
-    pub fn set_op_type(&mut self, op_type: TensorOpType) -> &mut Self {
+    pub fn set_op_type(&self, op_type: TensorOpType) -> &Self {
         self.borrow_mut().op_type = op_type;
         self
     }
 
-    pub fn get_op_type(&self) -> TensorOpType {
-        self.borrow().op_type.clone()
+    pub fn op_type(&self) -> TensorOpType {
+        self.borrow().op_type
     }
 
-    pub fn set_tensor_type(&mut self, tensor_type: TensorType) -> &mut Self {
+    pub fn set_tensor_type(&self, tensor_type: TensorType) -> &Self {
         self.borrow_mut().tensor_type = tensor_type;
         self
     }
 
-    pub fn get_tensor_type(&self) -> TensorType {
-        self.borrow().tensor_type.clone()
+    pub fn tensor_type(&self) -> TensorType {
+        self.borrow().tensor_type
     }
 
-    pub fn get_view_offset(&self) -> usize {
+    pub fn view_offset(&self) -> usize {
         self.borrow().view_offset
-    }
-
-    pub fn get_data(&self) -> Result<*mut u8> {
-        todo!("get_data");
     }
 
     pub fn nbytes(&self) -> usize {
         self.borrow().layout.nbytes(self.get_dtype())
     }
 
-    pub(crate) fn get_storage(&self) -> Result<Ref<'_, TensorStorage>> {
+    pub(crate) fn storage(&self) -> Result<Ref<'_, TensorStorage>> {
         let borrow = self.borrow();
         if borrow.extra_storage.is_none() {
             return Err(Error::msg("extra_storage is None"));
@@ -269,11 +254,10 @@ mod tests {
     fn test_tensor_default() {
         let tensor = Tensor::new();
 
-        assert_eq!(tensor.get_name(), String::new());
-        assert_eq!(tensor.get_dtype(), DataType::U8);
-        assert_eq!(tensor.get_length(), 0);
-        assert_eq!(tensor.get_tensor_type(), TensorType::UNKNOWN);
-        assert_eq!(tensor.get_op_type(), TensorOpType::UNKNOWN);
+        assert_eq!(tensor.name(), String::new());
+        assert_eq!(tensor.dtype(), DataType::U8);
+        assert_eq!(tensor.tensor_type(), TensorType::UNKNOWN);
+        assert_eq!(tensor.op_type(), TensorOpType::UNKNOWN);
         assert_eq!(tensor.borrow().view_offset, 0);
     }
 
@@ -301,16 +285,13 @@ mod tests {
 
         let shape = shape![2, 3, 4, 5];
         tensor.set_shape(shape);
-        assert_eq!(&*tensor.get_shape(), &shape);
-
-        tensor.set_length(100);
-        assert_eq!(tensor.get_length(), 100);
+        assert_eq!(&*tensor.shape(), &shape);
 
         for op_type in
             [TensorOpType::UNKNOWN, TensorOpType::TensorOpView, TensorOpType::TensorOpMul]
         {
             tensor.set_op_type(op_type);
-            assert_eq!(tensor.get_op_type(), op_type);
+            assert_eq!(tensor.op_type(), op_type);
         }
 
         for tensor_type in [TensorType::UNKNOWN, TensorType::InputParam, TensorType::OutputParam] {
@@ -326,13 +307,11 @@ mod tests {
         let _ = tensor
             .set_name("chained".to_string())
             .set_data_type(DataType::F32)
-            .set_shape(shape![1, 2, 3, 4])
-            .set_length(42);
+            .set_shape(shape![1, 2, 3, 4]);
 
-        assert_eq!(tensor.get_name(), "chained".to_string());
-        assert_eq!(tensor.get_dtype(), DataType::F32);
-        assert_eq!(&*tensor.get_shape(), &shape![1, 2, 3, 4]);
-        assert_eq!(tensor.get_length(), 42);
+        assert_eq!(tensor.name(), "chained".to_string());
+        assert_eq!(tensor.dtype(), DataType::F32);
+        assert_eq!(&*tensor.shape(), &shape![1, 2, 3, 4]);
     }
 
     #[test]
@@ -348,11 +327,11 @@ mod tests {
 
         let mut t2 = t1.clone();
 
-        assert_eq!(t1.get_name(), t2.get_name());
+        assert_eq!(t1.name(), t2.name());
 
         t2.set_name("copy".to_string());
-        assert_eq!(t1.get_name(), "copy".to_string());
-        assert_eq!(t2.get_name(), "copy".to_string());
+        assert_eq!(t1.name(), "copy".to_string());
+        assert_eq!(t2.name(), "copy".to_string());
     }
 
     #[test]
@@ -389,7 +368,7 @@ mod tests {
         let new_id = TensorId::new();
 
         tensor.set_tensor_id(new_id);
-        assert_eq!(tensor.get_tensor_id(), new_id);
+        assert_eq!(tensor.tensor_id(), new_id);
     }
 
     #[test]
@@ -418,7 +397,7 @@ mod tests {
         for dtype in dtypes {
             let mut tensor = Tensor::new();
             tensor.set_data_type(dtype);
-            assert_eq!(tensor.get_dtype(), dtype);
+            assert_eq!(tensor.dtype(), dtype);
         }
     }
 }
