@@ -1,44 +1,35 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::backend_buffer_allocator::CudaBackendBufferAllocator;
 use super::backend_context::CudaBackendContext;
 use crate::backend::BackendBuffer;
-use crate::backend::BackendBufferAllocator;
 use crate::backend::BackendBufferUsage;
-use crate::backend::BackendDevice;
 use crate::data_type::is_quantized;
 use crate::error::{Error, Result};
 use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
-use cuda_core::memory::{memcpy_dtoh_async, memcpy_htod_async, memset_d8_async};
 use cuda_core::DeviceBuffer;
+use cuda_core::memory::{memcpy_dtoh_async, memcpy_htod_async, memset_d8_async};
 
 pub(crate) struct CudaBackendBuffer {
     backend_ctx: Option<Rc<RefCell<CudaBackendContext>>>,
-    backend_allocator: Option<Rc<CudaBackendBufferAllocator>>,
     buffer: DeviceBuffer<u8>,
     usage: BackendBufferUsage,
     size: usize,
 }
 
+impl CudaBackendBuffer {
+    pub(super) fn new(
+        backend_ctx: Option<Rc<RefCell<CudaBackendContext>>>,
+        buffer: DeviceBuffer<u8>,
+        usage: BackendBufferUsage,
+        size: usize,
+    ) -> Self {
+        Self { backend_ctx, buffer, usage, size }
+    }
+}
+
 impl BackendBuffer for CudaBackendBuffer {
-    fn as_ptr(&self) -> Result<*mut u8> {
-        todo!()
-    }
-
-    fn device(&self) -> Result<Box<dyn BackendDevice>> {
-        todo!()
-    }
-
-    fn get_base(&self) -> Result<*mut u8> {
-        todo!()
-    }
-
-    fn clear(&self, value: u8) -> Result<()> {
-        todo!()
-    }
-
     fn reset(&self) -> Result<()> {
         todo!()
     }
@@ -79,7 +70,7 @@ impl BackendBuffer for CudaBackendBuffer {
         Ok(())
     }
 
-    fn memset_tensor(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()> {
+    fn fill(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()> {
         self.backend_ctx.unwrap().set_device(self.backend_ctx.unwrap().current_device_id.unwrap());
         let storage = tensor.get_extra_storage()?;
         let offset = storage.offset();
@@ -110,7 +101,7 @@ impl BackendBuffer for CudaBackendBuffer {
         Ok(())
     }
 
-    fn set_tensor(
+    fn write(
         &self,
         tensor: crate::tensor::Tensor,
         data: &mut [u8],
@@ -145,7 +136,7 @@ impl BackendBuffer for CudaBackendBuffer {
         Ok(())
     }
 
-    fn get_tensor(
+    fn read(
         &self,
         tensor: crate::tensor::Tensor,
         data: &mut [u8],
@@ -180,7 +171,7 @@ impl BackendBuffer for CudaBackendBuffer {
         Ok(())
     }
 
-    fn copy_tensor(
+    fn copy(
         &self,
         src: crate::tensor::Tensor,
         dst: crate::tensor::Tensor,
@@ -251,11 +242,6 @@ impl BackendBuffer for CudaBackendBuffer {
 
     fn get_usage(&self) -> Result<BackendBufferUsage> {
         Ok(self.usage.clone())
-    }
-
-    fn set_usage(&mut self, usage: BackendBufferUsage) -> Result<()> {
-        self.usage = usage.clone();
-        Ok(())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

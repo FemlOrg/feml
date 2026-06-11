@@ -144,12 +144,4 @@ impl BackendBuffer for OpenclBackendBuffer {
     fn get_usage(&self) -> Result<BackendBufferUsage> {
         Ok(self.usage)
     }
-
-    fn create_buffer(
-        &self,
-        size: usize,
-        usage: BackendBufferUsage,
-    ) -> Result<Box<dyn BackendBuffer>> {
-        todo!()
-    }
 }

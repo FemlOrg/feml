@@ -1,3 +1,5 @@
+use crate::error::{Error, Result};
+
 /// The different types of elements allowed in tensors.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum DataType {
@@ -47,6 +49,14 @@ pub fn get_block_size(dtype: DataType) -> usize {
 
 pub fn is_quantized(dtype: DataType) -> bool {
     DATA_TYPE_TRAITS[dtype as usize].quantized
+}
+
+pub fn get_row_size(dtype: DataType, ne: usize) -> Result<usize> {
+    if ne % get_block_size(dtype) != 0 {
+        return Err(Error::msg("ne is not align to block size"));
+    }
+
+    Ok(get_type_size(dtype) * ne / get_block_size(dtype))
 }
 
 /// The different types of tensors.
