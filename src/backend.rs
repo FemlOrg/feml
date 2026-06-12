@@ -66,7 +66,7 @@ pub trait BackendBuffer {
 
     fn copy(&self, src: Tensor, dst: Tensor) -> Result<()>;
 
-    fn get_usage(&self) -> Result<BackendBufferUsage>;
+    fn usage(&self) -> Result<BackendBufferUsage>;
 
     fn as_any(&self) -> &dyn Any;
 
@@ -82,21 +82,9 @@ pub trait Backend {
 
     fn memcpy_async(&self, dst: &mut [u8], src: &[u8], size: usize) -> Result<()>;
 
-    fn write_async(
-        &self,
-        tensor: Tensor,
-        data: *mut u8,
-        offset: usize,
-        size: usize,
-    ) -> Result<()>;
+    fn write_async(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
 
-    fn read_async(
-        &self,
-        tensor: Tensor,
-        data: *mut u8,
-        offset: usize,
-        size: usize,
-    ) -> Result<()>;
+    fn read_async(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
 
     fn copy_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
 

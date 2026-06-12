@@ -1,177 +1,138 @@
-//! Context module for managing tensors, compute graphs and backend resources.
+//! Context module for managing tensors and compute graphs.
 //!
-//! Context is the primary user-facing abstraction. It owns:
-//! - A Backend (execution engine: CPU/OpenCL/CUDA)
-//! - A BackendBuffer (device memory)
-//! - An object pool for Tensor metadata
-//! - A tensor/graph registry for ID-based lookup
-//!
-//! Three entry levels:
-//!   L1: Context::auto()                    — auto-select best backend
-//!   L2: Context::with_backend("opencl")    — named backend
-//!   L3: Context::builder().with_backend(b).build() — full control
+//! This module provides the core context structures for tensor operations,
+//! including memory management through object pools and table-based storage
+//! for tensors and compute graphs.
 
-use crate::backend::{Backend, BackendBuffer, BackendBufferUsage, BackendDevice};
 use crate::compute_graph::{ComputeGraph, GraphId};
 use crate::data_type::{get_block_size, get_type_size, DataType};
 use crate::defs::MAX_DIMS;
 use crate::error::Result;
 use crate::error::{Error, ErrorKind};
 use crate::object_pool::ObjectPool;
-use crate::registry::Registry;
 use crate::shape::Shape;
 use crate::tensor::{Tensor, TensorId, TensorInner};
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-// ─── Builder Configuration ────────────────────────────────────────
-
-/// How the backend is sourced during Context creation.
-enum BackendSource {
-    /// L1: auto-select the best available backend.
-    Auto,
-    /// L2: look up by name via Registry.
-    Named(String),
-    /// L3: caller provides pre-built backend.
-    Provided(Box<dyn Backend>),
+#[derive(Debug, Clone)]
+pub struct ContextConfig {
+    pub tensor_pool_capacity: usize,
+    pub graph_pool_cacacity: usize,
 }
 
-/// Fluent builder for Context.
+#[derive(Debug, Clone)]
 pub struct ContextBuilder {
-    tensor_pool_capacity: usize,
-    graph_pool_capacity: usize,
-    buffer_size: usize,
-    buffer_usage: BackendBufferUsage,
-    backend_source: BackendSource,
+    config: ContextConfig,
 }
 
 impl Default for ContextBuilder {
     fn default() -> Self {
-        Self {
-            tensor_pool_capacity: 1024,
-            graph_pool_capacity: 10,
-            buffer_size: 256 * 1024 * 1024, // 256 MB
-            buffer_usage: BackendBufferUsage::Any,
-            backend_source: BackendSource::Auto,
-        }
+        Self { config: ContextConfig::default() }
     }
 }
 
 impl ContextBuilder {
-    /// Set the object-pool capacity for TensorInner reuse.
-    pub fn tensor_pool_capacity(mut self, cap: usize) -> Self {
-        self.tensor_pool_capacity = cap;
+    pub fn tensor_pool_capacity(mut self, capacity: usize) -> Self {
+        self.config.tensor_pool_capacity = capacity;
         self
     }
 
-    /// Set the pre-allocated buffer size in bytes.
-    pub fn buffer_size(mut self, size: usize) -> Self {
-        self.buffer_size = size;
+    pub fn graph_pool_capacity(mut self, capacity: usize) -> Self {
+        self.config.graph_pool_cacacity = capacity;
         self
     }
 
-    /// Set buffer usage hint (weights / compute / any).
-    pub fn buffer_usage(mut self, usage: BackendBufferUsage) -> Self {
-        self.buffer_usage = usage;
-        self
-    }
-
-    // ─── Backend selection ─────────────────────────────────────
-
-    /// **L2 entry**: specify a backend name (e.g. `"opencl"`, `"cpu"`).
-    /// Builder will discover it via `Registry`, initialise it,
-    /// and create a buffer — all inside `build()`.
-    pub fn backend(mut self, name: impl Into<String>) -> Self {
-        self.backend_source = BackendSource::Named(name.into());
-        self
-    }
-
-    /// **L3 entry**: inject an already-built `Backend`.
-    /// Builder will create a buffer from it during `build()`.
-    ///
-    /// Use this when you need full control over backend initialisation
-    /// (e.g. custom device selection, multi-GPU, dynamic loading).
-    pub fn with_backend(mut self, backend: Box<dyn Backend>) -> Self {
-        self.backend_source = BackendSource::Provided(backend);
-        self
-    }
-
-    // ─── Finalise ──────────────────────────────────────────────
-
-    /// Consume the builder and produce a ready-to-use `Context`.
-    pub fn build(self) -> Result<Context> {
-        let (backend, buffer) = match self.backend_source {
-            // ── L3: caller already built the Backend ───────────
-            BackendSource::Provided(backend) => {
-                let buffer = backend.create_buffer(self.buffer_size, self.buffer_usage)?;
-                (backend, buffer)
-            }
-
-            // ── L1 / L2: discover via Registry ────────────────
-            ref source @ (BackendSource::Auto | BackendSource::Named(_)) => {
-                let registry = Registry::discover()?;
-
-                let reg = match source {
-                    BackendSource::Named(name) => registry
-                        .find(name)
-                        .ok_or_else(|| Error::msg(format!("backend '{}' not found", name)))?,
-                    BackendSource::Auto => registry.best().ok_or_else(|| {
-                        Error::msg("no backend available (tried CUDA > OpenCL > CPU)")
-                    })?,
-                    _ => unreachable!(),
-                };
-
-                reg.init_devices()?;
-                let device = reg.device(0)?;
-                let backend = device.init_backend()?;
-                let buffer = backend.create_buffer(self.buffer_size, self.buffer_usage)?;
-
-                (backend, buffer)
-            }
-        };
-
-        let inner = ContextInner {
-            tensor_pool: ObjectPool::with_capacity(TensorInner::default, self.tensor_pool_capacity),
-            tensor_tables: HashMap::new(),
-            graph_tables: HashMap::new(),
-            backend: Some(backend),
-            buffer: Some(buffer),
-        };
-
-        Ok(Context(Rc::new(RefCell::new(inner))))
+    pub fn build(self) -> Context {
+        Context::with_config(self.config)
     }
 }
 
-// ─── ContextInner ──────────────────────────────────────────────────
+impl Default for ContextConfig {
+    fn default() -> Self {
+        Self { tensor_pool_capacity: 1024, graph_pool_cacacity: 0 }
+    }
+}
 
+/// Internal context structure holding tensor and graph management data.
+///
+/// This struct contains the core data structures for managing tensors and compute graphs,
+/// including an object pool for tensor instances and hash tables for lookup.
 pub struct ContextInner {
+    /// Object pool for tensor instances to reduce allocation overhead.
     pub tensor_pool: ObjectPool<TensorInner>,
+    /// Hash table mapping tensor IDs to tensor objects.
     pub tensor_tables: HashMap<TensorId, Tensor>,
+    /// Hash table mapping graph IDs to compute graph objects.
     pub graph_tables: HashMap<GraphId, ComputeGraph>,
-    pub backend: Option<Box<dyn Backend>>,
-    pub buffer: Option<Box<dyn BackendBuffer>>,
+}
+
+/// Public context wrapper providing thread-safe access to the internal context.
+///
+/// This struct wraps the internal `Context_` in an `Arc<RefCell<>>` to allow
+/// shared mutable access across threads while maintaining interior mutability.
+#[derive(Clone)]
+pub struct Context(Rc<RefCell<ContextInner>>);
+
+impl AsRef<Context> for Context {
+    fn as_ref(&self) -> &Context {
+        self
+    }
+}
+
+impl std::ops::Deref for Context {
+    type Target = RefCell<ContextInner>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl ContextInner {
+    /// Creates a new internal context with specified tensor pool capacity.
+    ///
+    /// @param size The initial capacity for the tensor object pool.
+    /// @return Some(Context_) if successful, None if initialization fails.
+    fn new(config: ContextConfig) -> Option<Self> {
+        (Self {
+            tensor_pool: ObjectPool::with_capacity(
+                TensorInner::default,
+                config.tensor_pool_capacity,
+            ),
+            tensor_tables: HashMap::new(),
+            graph_tables: HashMap::new(),
+        })
+        .into()
+    }
+
     fn contain_tensor_impl(&self, tensor_id: TensorId) -> bool {
         self.tensor_tables.contains_key(&tensor_id)
     }
 
-    // ─── Tensor creation (metadata only, no data allocation) ────
-
+    /// Internal implementation for creating a new tensor.
+    ///
+    /// This method handles the core logic of tensor creation, including validation,
+    /// memory allocation, and layout computation.
+    ///
+    /// @param dtype The data type of the tensor elements.
+    /// @param shape The shape (dimensions) of the tensor.
+    /// @param view_src Optional source tensor for creating a view.
+    /// @return Result containing the new tensor or an error.
     fn new_tensor_impl(
         self: &mut Self,
         dtype: DataType,
         shape: &Shape,
         view_src: Option<Tensor>,
     ) -> Result<Tensor> {
+        // Validate shape: ensure no dimension is zero
         if shape.iter().any(|&dim| dim == 0) {
             return Err(Error::new(ErrorKind::Msg("shape cannot contain zero dimensions".into()))
                 .context("in new_tensor_impl"));
         }
 
+        // Validate data type: check if supported for tensor creation
         if !matches!(dtype, DataType::F32 | DataType::I32) {
             return Err(Error::new(ErrorKind::UnsupportedDataTypeForOp {
                 dtype,
@@ -179,13 +140,15 @@ impl ContextInner {
             }));
         }
 
-        let mut tensor_inner = self.tensor_pool.get();
+        let mut tensor_inner = self.tensor_pool.get(); // This operation always succeeds as ObjectPool provides objects
 
         tensor_inner.dtype = dtype;
         tensor_inner.layout.shape = shape.clone();
         tensor_inner.id = TensorId::new();
 
+        // Handle view source if provided
         if let Some(src) = view_src {
+            // Verify source tensor exists in the context
             if !self.contain_tensor_impl(src.get_tensor_id()) {
                 return Err(Error::msg("view source tensor not found in context")
                     .context("in new_tensor_impl"));
@@ -194,14 +157,15 @@ impl ContextInner {
             tensor_inner.view_offset += src.borrow().view_offset;
 
             if let Some(src_view) = src.borrow().view_tensor.clone() {
-                tensor_inner.self_storage = src_view.borrow().self_storage.clone();
+                tensor_inner.storage = src_view.borrow().storage.clone();
                 tensor_inner.view_tensor = Some(src_view);
             } else {
-                tensor_inner.self_storage = src.borrow().self_storage.clone();
+                tensor_inner.storage = src.borrow().storage.clone();
                 tensor_inner.view_tensor = Some(src.clone());
             }
         }
 
+        // Calculate strides with overflow checks
         let type_size = get_type_size(dtype);
         if type_size == 0 {
             return Err(Error::msg("invalid data type size").context("in stride calculation"));
@@ -217,6 +181,7 @@ impl ContextInner {
         tensor_inner.layout.stride[1] =
             tensor_inner.layout.stride[0] * (tensor_inner.layout.stride[0] / block_size);
 
+        // Calculate remaining strides with overflow protection
         for i in 2..MAX_DIMS {
             let next_stride = tensor_inner.layout.stride[i - 1]
                 .checked_mul(tensor_inner.layout.shape[i - 1])
@@ -227,95 +192,100 @@ impl ContextInner {
         }
 
         let tensor = Tensor(Arc::new(RefCell::new(tensor_inner)));
-        self.tensor_tables.insert(tensor.get_tensor_id(), tensor.clone());
+        self.tensor_tables.insert(tensor.tensor_id(), tensor.clone());
 
         Ok(tensor)
     }
 }
 
-// ─── Context (public) ──────────────────────────────────────────────
-
-#[derive(Clone)]
-pub struct Context(Rc<RefCell<ContextInner>>);
-
-// ── Deprecated internal-context helpers (kept for existing callers) ──
-
 impl Context {
-    /// --- L1: auto-select the best backend (GPU > CPU) ---
-    pub fn auto() -> Result<Self> {
-        ContextBuilder::default().build()
+    /// Creates a new tensor with the specified data type and shape.
+    ///
+    /// This is the public API for tensor creation. It delegates to the internal
+    /// implementation and handles error propagation.
+    ///
+    /// @param dtype The data type of the tensor elements.
+    /// @param shape The shape (dimensions) of the tensor.
+    /// @return Result containing the new tensor or an error.
+    pub fn new_tensor(self: &mut Self, dtype: DataType, shape: &Shape) -> Result<Tensor> {
+        let tensor = self.borrow_mut().new_tensor_impl(dtype, shape, None)?;
+        Ok(tensor)
     }
 
-    /// --- L2: select a named backend ---
-    pub fn with_backend(name: &str) -> Result<Self> {
-        ContextBuilder::default().backend(name).build()
-    }
-
-    /// Start a fluent builder.
-    pub fn builder() -> ContextBuilder {
-        ContextBuilder::default()
-    }
-
-    /// Access the inner backend (panics if not set).
-    pub fn backend(&self) -> Ref<'_, Box<dyn Backend>> {
-        Ref::map(self.0.borrow(), |inner| inner.backend.as_ref().unwrap())
-    }
-
-    /// Access the inner buffer (panics if not set).
-    pub fn buffer(&self) -> Ref<'_, Box<dyn BackendBuffer>> {
-        Ref::map(self.0.borrow(), |inner| inner.buffer.as_ref().unwrap())
-    }
-
-    // ── Tensor management ──────────────────────────────────────
-
-    pub fn new_tensor(&self, dtype: DataType, shape: &Shape) -> Result<Tensor> {
-        self.0.borrow_mut().new_tensor_impl(dtype, shape, None)
-    }
-
-    pub fn new_tensor_view(&self, view_src: Tensor) -> Result<Tensor> {
+    pub fn new_tensor_view(self: &mut Self, view_src: Tensor) -> Result<Tensor> {
         let dtype = view_src.get_dtype();
         let shape = view_src.get_shape();
         let stride = view_src.borrow().layout.stride;
 
-        let tensor = self.0.borrow_mut().new_tensor_impl(dtype, &shape, Some(view_src.clone()))?;
+        let tensor = self.borrow_mut().new_tensor_impl(dtype, &shape, Some(view_src.clone()))?;
+
         tensor.borrow_mut().layout.stride = stride;
 
         Ok(tensor)
     }
 
-    pub fn dup_tensor(&self, src: &Tensor) -> Result<Tensor> {
+    /// Creates a new tensor by duplicating the shape and data type of an existing tensor.
+    /// This method is a convenience wrapper around `new_tensor` that extracts the necessary
+    /// information from the source tensor.
+    pub fn dup_tensor(self: &mut Self, src: Tensor) -> Result<Tensor> {
         self.new_tensor(src.get_dtype(), &src.get_shape())
     }
 
+    /// Creates a new compute graph.
+    ///
+    /// @return Result containing the new compute graph or an error.
+    /// @note This method is not yet implemented.
+    pub fn new_graph(self: &Self) -> Result<ComputeGraph> {
+        todo!();
+    }
+
     pub fn contain_tensor(&self, tensor_id: TensorId) -> bool {
-        self.0.borrow().contain_tensor_impl(tensor_id)
+        self.borrow().contain_tensor_impl(tensor_id)
+    }
+
+    pub fn with_config(config: ContextConfig) -> Self {
+        Context(Rc::new(RefCell::new(ContextInner::new(config).unwrap())))
+    }
+
+    pub fn builder() -> ContextBuilder {
+        ContextBuilder::default()
     }
 
     pub fn get_tensor(&self, tensor_id: TensorId) -> Result<Tensor> {
-        self.0.borrow().tensor_tables.get(&tensor_id).cloned().ok_or_else(|| {
+        self.borrow().tensor_tables.get(&tensor_id).cloned().ok_or_else(|| {
             Error::msg(format!("tensor {} not found", tensor_id.as_usize()))
                 .context("in Context::get_tensor")
         })
     }
 
-    // ── Graph ──────────────────────────────────────────────────
+    fn mul_impl(&mut self, src0: Tensor, src1: Tensor, inplace: bool) -> Result<Tensor> {
+        let mut result = if inplace {
+            self.new_tensor_view(src0.clone())
+        } else {
+            self.dup_tensor(src0.clone())
+        };
 
-    pub fn new_graph(&self) -> Result<ComputeGraph> {
-        todo!("new_graph")
+        match &mut result {
+            Ok(res) => {
+                res.set_src_tensor(src0.tensor_id());
+                res.set_src_tensor(src1.tensor_id());
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        }
+
+        result
+    }
+
+    pub fn mul(&mut self, src0: Tensor, src1: Tensor) -> Result<Tensor> {
+        self.mul_impl(src0, src1, false)
+    }
+
+    pub fn mul_inplace(&mut self, src0: Tensor, src1: Tensor) -> Result<Tensor> {
+        self.mul_impl(src0, src1, true)
     }
 }
-
-// ── internal deref (legacy, keep for existing tests) ────────────────
-
-impl std::ops::Deref for Context {
-    type Target = RefCell<ContextInner>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-// ── tests ──────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -325,18 +295,15 @@ mod tests {
     use crate::shape::Shape;
 
     #[test]
-    fn test_context_empty() {
-        let ctx = Context::with_config(ContextConfig::default());
+    fn test_context_new() {
+        let ctx = Context::builder().tensor_pool_capacity(10).build();
         assert_eq!(ctx.borrow().tensor_tables.len(), 0);
         assert_eq!(ctx.borrow().graph_tables.len(), 0);
     }
 
     #[test]
     fn test_new_tensor_success() {
-        let ctx = Context::with_config(ContextConfig {
-            tensor_pool_capacity: 10,
-            graph_pool_cacacity: 0,
-        });
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = shape![2, 3, 4, 5];
         let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
         assert_eq!(tensor.borrow().dtype, DataType::F32);
@@ -346,10 +313,7 @@ mod tests {
 
     #[test]
     fn test_new_tensor_zero_dimension() {
-        let ctx = Context::with_config(ContextConfig {
-            tensor_pool_capacity: 10,
-            graph_pool_cacacity: 0,
-        });
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = shape![0, 3, 4, 5];
         let result = ctx.new_tensor(DataType::F32, &shape);
         assert!(result.is_err());
@@ -358,10 +322,7 @@ mod tests {
 
     #[test]
     fn test_new_tensor_unsupported_dtype() {
-        let ctx = Context::with_config(ContextConfig {
-            tensor_pool_capacity: 10,
-            graph_pool_cacacity: 0,
-        });
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = shape![2, 3, 4, 5];
         let result = ctx.new_tensor(DataType::U8, &shape);
         assert!(result.is_err());
@@ -370,10 +331,7 @@ mod tests {
 
     #[test]
     fn test_new_tensor_view_success() {
-        let ctx = Context::with_config(ContextConfig {
-            tensor_pool_capacity: 10,
-            graph_pool_cacacity: 0,
-        });
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = shape![2, 3, 4, 5];
         let src_tensor = ctx.new_tensor(DataType::I32, &shape).unwrap();
         assert!(ctx.contain_tensor(src_tensor.get_tensor_id()));
@@ -388,14 +346,8 @@ mod tests {
 
     #[test]
     fn test_new_tensor_view_invalid_source() {
-        let ctx = Context::with_config(ContextConfig {
-            tensor_pool_capacity: 10,
-            graph_pool_cacacity: 0,
-        });
-        let other_ctx = Context::with_config(ContextConfig {
-            tensor_pool_capacity: 10,
-            graph_pool_cacacity: 0,
-        });
+        let mut ctx = Context::builder().tensor_pool_capacity(10).build();
+        let mut other_ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = shape![2, 3, 4, 5];
         let src_tensor = other_ctx.new_tensor(DataType::F32, &shape).unwrap();
         let result = ctx.new_tensor_view(src_tensor);

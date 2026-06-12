@@ -31,7 +31,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         let view_tensor_opt = tensor.borrow().view_tensor.clone();
         match view_tensor_opt {
             Some(view_tensor) => {
-                let view_extra = view_tensor.get_storage()?.clone();
+                let view_extra = view_tensor.storage()?.clone();
                 tensor.set_storage(Some(view_extra))?;
             }
             None => {
@@ -47,8 +47,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
-        let tensor_ref = tensor.borrow();
-        let storage = tensor_ref.storage.as_ref().ok_or_else(|| Error::msg("storage is none"))?;
+        let storage = tensor.storage().as_ref().ok_or_else(|| Error::msg("storage is none"))?;
 
         if !matches!(storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
@@ -72,8 +71,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
-        let tensor_ref = tensor.borrow();
-        let storage = tensor_ref.storage.as_ref().ok_or_else(|| Error::msg("storage is none"))?;
+        let storage = tensor.storage().as_ref().ok_or_else(|| Error::msg("storage is none"))?;
 
         if !matches!(storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
@@ -98,8 +96,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
-        let tensor_ref = tensor.borrow();
-        let storage = tensor_ref.storage.as_ref().ok_or_else(|| Error::msg("storage is none"))?;
+        let storage = tensor.storage().as_ref().ok_or_else(|| Error::msg("storage is none"))?;
 
         if !matches!(storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
@@ -138,7 +135,7 @@ impl BackendBuffer for OpenclBackendBuffer {
         self
     }
 
-    fn get_usage(&self) -> Result<BackendBufferUsage> {
+    fn usage(&self) -> Result<BackendBufferUsage> {
         Ok(self.usage)
     }
 }
