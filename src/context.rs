@@ -157,10 +157,10 @@ impl ContextInner {
             tensor_inner.view_offset += src.borrow().view_offset;
 
             if let Some(src_view) = src.borrow().view_tensor.clone() {
-                tensor_inner.self_storage = src_view.borrow().self_storage.clone();
+                tensor_inner.storage = src_view.borrow().storage.clone();
                 tensor_inner.view_tensor = Some(src_view);
             } else {
-                tensor_inner.self_storage = src.borrow().self_storage.clone();
+                tensor_inner.storage = src.borrow().storage.clone();
                 tensor_inner.view_tensor = Some(src.clone());
             }
         }
@@ -192,7 +192,7 @@ impl ContextInner {
         }
 
         let tensor = Tensor(Arc::new(RefCell::new(tensor_inner)));
-        self.tensor_tables.insert(tensor.get_tensor_id(), tensor.clone());
+        self.tensor_tables.insert(tensor.tensor_id(), tensor.clone());
 
         Ok(tensor)
     }
@@ -267,8 +267,8 @@ impl Context {
 
         match &mut result {
             Ok(res) => {
-                res.set_src_tensor(src0.get_tensor_id());
-                res.set_src_tensor(src1.get_tensor_id());
+                res.set_src_tensor(src0.tensor_id());
+                res.set_src_tensor(src1.tensor_id());
             }
             Err(e) => {
                 eprintln!("{}", e);

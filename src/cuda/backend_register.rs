@@ -13,7 +13,7 @@ use std::sync::Once;
 static INIT: Once = Once::new();
 pub(super) static mut REG: Option<*const dyn BackendRegister> = None;
 
-//In both CUDA and OpenCL, each device has its own CudaContext (or ocl::Context), whereas only a single global CudaBackendContext or OpenclBackendContext exists.
+//In CUDA , each device has its own CudaContext , whereas only a single global CudaBackendContext exists.
 pub(super) struct CudaBackendRegister {
     pub(super) backend_ctx: Rc<RefCell<CudaBackendContext>>,
     pub(super) devices: RefCell<Vec<CudaBackendDevice>>,

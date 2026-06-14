@@ -53,7 +53,6 @@ pub enum BackendBufferUsage {
     Compute,
 }
 
-// BackendBuffer = ggml_backend_buffer_type + ggml_backend_buffer
 pub trait BackendBuffer {
     fn reset(&self) -> Result<()>;
 
@@ -67,7 +66,7 @@ pub trait BackendBuffer {
 
     fn copy(&self, src: Tensor, dst: Tensor) -> Result<()>;
 
-    fn get_usage(&self) -> Result<BackendBufferUsage>;
+    fn usage(&self) -> Result<BackendBufferUsage>;
 
     fn as_any(&self) -> &dyn Any;
 
@@ -106,11 +105,6 @@ pub trait BackendDevice {
     fn init_backend(&self) -> Result<Box<dyn Backend>>;
 
     fn supports_op(&self, op_type: TensorOpType) -> Result<bool>;
-
-    // fn supports_buffer_allocator(
-    //     &self,
-    //     buffer_allocator: &dyn BackendBufferAllocator,
-    // ) -> Result<bool>;
 
     fn offload_op(&self, tensor: Tensor) -> Result<bool>;
 

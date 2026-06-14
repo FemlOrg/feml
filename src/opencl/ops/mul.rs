@@ -14,43 +14,43 @@ pub(crate) fn mul(
 ) -> Result<()> {
     let mut backend_ctx = backend.backend_ctx.borrow_mut();
 
-    let ne00 = src0.get_shape()[0];
-    let ne01 = src0.get_shape()[1];
-    let ne02 = src0.get_shape()[2];
-    let ne03 = src0.get_shape()[3];
+    let ne00 = src0.shape()[0];
+    let ne01 = src0.shape()[1];
+    let ne02 = src0.shape()[2];
+    let ne03 = src0.shape()[3];
 
-    let nb00 = src0.get_stride()[0];
-    let nb01 = src0.get_stride()[1];
-    let nb02 = src0.get_stride()[2];
-    let nb03 = src0.get_stride()[3];
+    let nb00 = src0.stride()[0];
+    let nb01 = src0.stride()[1];
+    let nb02 = src0.stride()[2];
+    let nb03 = src0.stride()[3];
 
-    let ne10 = src1.get_shape()[0];
-    let ne11 = src1.get_shape()[1];
-    let ne12 = src1.get_shape()[2];
-    let ne13 = src1.get_shape()[3];
+    let ne10 = src1.shape()[0];
+    let ne11 = src1.shape()[1];
+    let ne12 = src1.shape()[2];
+    let ne13 = src1.shape()[3];
 
-    let nb10 = src1.get_stride()[0];
-    let nb11 = src1.get_stride()[1];
-    let nb12 = src1.get_stride()[2];
-    let nb13 = src1.get_stride()[3];
+    let nb10 = src1.stride()[0];
+    let nb11 = src1.stride()[1];
+    let nb12 = src1.stride()[2];
+    let nb13 = src1.stride()[3];
 
-    let ne0 = dst.get_shape()[0];
-    let ne1 = dst.get_shape()[1];
-    let ne2 = dst.get_shape()[2];
-    let ne3 = dst.get_shape()[3];
+    let ne0 = dst.shape()[0];
+    let ne1 = dst.shape()[1];
+    let ne2 = dst.shape()[2];
+    let ne3 = dst.shape()[3];
 
-    let nb0 = dst.get_stride()[0];
-    let nb1 = dst.get_stride()[1];
-    let nb2 = dst.get_stride()[2];
-    let nb3 = dst.get_stride()[3];
+    let nb0 = dst.stride()[0];
+    let nb1 = dst.stride()[1];
+    let nb2 = dst.stride()[2];
+    let nb3 = dst.stride()[3];
 
-    let src0_storage = src0.get_extra_storage()?;
-    let src1_storage = src1.get_extra_storage()?;
-    let dst_storage = dst.get_extra_storage()?;
+    let src0_storage = src0.storage()?;
+    let src1_storage = src1.storage()?;
+    let dst_storage = dst.storage()?;
 
-    let offset0 = src0_storage.offset() + src0.get_view_offset();
-    let offset1 = src1_storage.offset() + src1.get_view_offset();
-    let offsetd = dst_storage.offset() + dst.get_view_offset();
+    let offset0 = src0_storage.offset() + src0.view_offset();
+    let offset1 = src1_storage.offset() + src1.view_offset();
+    let offsetd = dst_storage.offset() + dst.view_offset();
 
     let src0_buffer = src0_storage
         .as_opencl()
