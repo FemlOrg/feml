@@ -11,6 +11,7 @@ pub enum BackendDeviceType {
     ACCEL,
 }
 
+#[derive(Default, Clone, Copy)]
 pub struct BackendDeviceCaps {
     pub aysnc: bool,
     pub host_buffer: bool,
@@ -18,6 +19,7 @@ pub struct BackendDeviceCaps {
     pub events: bool,
 }
 
+#[derive(Default, Clone)]
 pub struct BackendDeviceProps {
     pub name: &'static str,
     pub description: String,
@@ -27,6 +29,7 @@ pub struct BackendDeviceProps {
     pub caps: BackendDeviceCaps,
 }
 
+#[derive(Default, Clone)]
 pub struct DeviceInfo {
     pub name: String,
     pub description: String,
@@ -35,11 +38,13 @@ pub struct DeviceInfo {
     pub caps: BackendCapabilities,
 }
 
+#[derive(Default, Clone, Copy)]
 pub struct MemoryInfo {
     pub total: usize,
     pub free: usize,
 }
 
+#[derive(Default, Clone, Copy)]
 pub struct BackendCapabilities {
     pub async_compute: bool,
     pub host_buffer: bool,
@@ -80,11 +85,16 @@ pub trait Backend {
 
     fn graph_compute(&self, ctx: &Context, graph: &mut ComputeGraph) -> Result<()>;
 
-    fn memcpy_async(&self, dst: &mut [u8], src: &[u8], size: usize) -> Result<()>;
+    fn write_async(
+        &self,
+        tensor: Tensor,
+        data: &mut [u8],
+        offset: usize,
+        size: usize,
+    ) -> Result<()>;
 
-    fn write_async(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
-
-    fn read_async(&self, tensor: Tensor, data: *mut u8, offset: usize, size: usize) -> Result<()>;
+    fn read_async(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize)
+    -> Result<()>;
 
     fn copy_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
 

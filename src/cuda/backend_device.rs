@@ -1,7 +1,9 @@
+use super::backend::CudaBackend;
 use super::backend_context::CudaBackendContext;
-use crate::backend::{Backend, BackendDevice};
+use crate::backend::{Backend, BackendBuffer, BackendDevice, DeviceInfo};
 use crate::data_type::TensorOpType;
 use crate::error::{Error, Result};
+use crate::tensor::Tensor;
 use cuda_core::{CudaContext, CudaStream};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -30,14 +32,18 @@ pub struct CudaBackendDevice {
 
 impl BackendDevice for CudaBackendDevice {
     fn init_backend(&self) -> Result<Box<dyn Backend>> {
-        todo!()
+        let ctx = self.backend_ctx.unwrap();
+        Ok(Box::new(CudaBackend { backend_ctx: ctx.clone() }))
     }
 
     fn supports_op(&self, op_type: TensorOpType) -> Result<bool> {
-        todo!()
+        match op_type {
+            TensorOpType::TensorOpMul => Ok(true),
+            _ => Ok(false),
+        }
     }
 
-    fn offload_op(&self, tensor: crate::tensor::Tensor) -> crate::error::Result<bool> {
+    fn offload_op(&self, tensor: Tensor) -> Result<bool> {
         todo!()
     }
 
@@ -46,20 +52,28 @@ impl BackendDevice for CudaBackendDevice {
         ptr: &mut [u8],
         size: usize,
         max_tensor_size: usize,
-    ) -> crate::error::Result<Box<dyn crate::backend::BackendBuffer>> {
-        todo!()
+    ) -> Result<Box<dyn BackendBuffer>> {
+        Err(Error::msg("not support buffer_from_host_ptr!"))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
-        todo!()
+        self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        todo!()
+        self
     }
 
-    fn info(&self) -> Result<crate::backend::DeviceInfo> {
-        todo!()
+    fn info(&self) -> Result<DeviceInfo> {
+        let mut device_info = DeviceInfo::default();
+        device_info.name = self.info.name.clone();
+        unsafe {
+            cuda_bindings::cuMemGetInfo_v2(
+                &mut device_info.memory.free as *mut usize,
+                &mut device_info.memory.total as *mut usize,
+            );
+        }
+        Ok(device_info)
     }
 }
 
