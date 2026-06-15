@@ -31,14 +31,10 @@ impl Backend for OpenclBackend {
 
     fn graph_compute(&self, ctx: &Context, graph: &mut ComputeGraph) -> Result<()> {
         for node in graph.nodes().iter() {
-            let tensor = ctx.get_tensor(*node)?;
+            let tensor = ctx.tensor(*node)?;
             self.compute_forward(ctx, &tensor)?;
         }
 
-        Ok(())
-    }
-
-    fn memcpy_async(&self, _dst: &mut [u8], _src: &[u8], _size: usize) -> Result<()> {
         Ok(())
     }
 
