@@ -30,7 +30,7 @@ impl Backend for OpenclBackend {
     }
 
     fn graph_compute(&self, ctx: &Context, graph: &mut ComputeGraph) -> Result<()> {
-        for node in graph.nodes() {
+        for node in graph.nodes().iter() {
             let tensor = ctx.get_tensor(*node)?;
             self.compute_forward(ctx, &tensor)?;
         }

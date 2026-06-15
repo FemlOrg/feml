@@ -1,4 +1,6 @@
-use crate::backend::{BackendBuffer, BackendDevice, BackendRegister};
+use crate::backend::{Backend, BackendBuffer, BackendDevice, BackendRegister};
+use crate::error::{Error, Result};
+use crate::opencl::backend_register::OpenclBackendRegister;
 pub struct Registry {
     registers: Vec<Box<dyn BackendRegister>>,
 }

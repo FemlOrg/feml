@@ -96,7 +96,7 @@ impl CudaBackendRegister {
     pub fn init() -> &'static dyn BackendRegister {
         unsafe {
             INIT.call_once(|| {
-                let reg = Self::new().into_inner();
+                let reg = Rc::try_unwrap(Self::new()).ok().unwrap().into_inner();
                 REG = Some(Box::into_raw(Box::new(reg)));
             });
             &*REG.unwrap()
