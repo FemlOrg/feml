@@ -11,7 +11,7 @@ use std::{any::Any, rc::Rc};
 static INIT: Once = Once::new();
 static mut REG: Option<*const dyn BackendRegister> = None;
 
-pub(super) struct OpenclBackendRegister {
+pub(crate) struct OpenclBackendRegister {
     pub(super) devices: RefCell<Vec<OpenclBackendDevice>>,
 }
 
@@ -87,7 +87,7 @@ impl OpenclBackendRegister {
     pub fn init() -> &'static dyn BackendRegister {
         unsafe {
             INIT.call_once(|| {
-                let reg = Self::new().into_inner();
+                let reg = Rc::try_unwrap(Self::new()).ok().unwrap().into_inner();
                 REG = Some(Box::into_raw(Box::new(reg)));
             });
             &*REG.unwrap()
@@ -104,7 +104,7 @@ impl OpenclBackendRegister {
         })
     }
 
-    fn new() -> Rc<RefCell<Self>> {
+    pub(crate) fn new() -> Rc<RefCell<Self>> {
         let reg = Rc::new(RefCell::new(Self { devices: RefCell::new(Vec::new()) }));
         reg.borrow_mut().backend_ctx.borrow_mut().register = Some(Rc::downgrade(&reg));
         reg

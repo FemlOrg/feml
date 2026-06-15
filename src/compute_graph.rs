@@ -1,12 +1,16 @@
-/// Unique identifier for tensors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct GraphId(usize);
 use crate::context::Context;
 use crate::data_type::TensorOpType;
 use crate::data_type::TensorType;
 use crate::error::{Error, Result};
 use crate::tensor::TensorId;
+use std::cell::Ref;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+
+/// Unique identifier for tensors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct GraphId(usize);
 
 impl GraphId {
     fn new() -> Self {
@@ -21,19 +25,22 @@ impl GraphId {
     }
 }
 
-pub struct ComputeGraph {
-    id: GraphId,
-    size: usize,
+pub(crate) struct ComputeGraphInner {
+    pub(crate) id: GraphId,
+    pub(crate) size: usize,
     node_count: usize,
     leaf_count: usize,
-    nodes: Vec<TensorId>,
-    leafs: Vec<TensorId>,
+    pub(crate) nodes: Vec<TensorId>,
+    pub(crate) leafs: Vec<TensorId>,
     node_use_count: HashMap<TensorId, usize>,
     visited_nodes: HashSet<TensorId>,
 }
 
-impl ComputeGraph {
-    pub fn new() -> Self {
+#[derive(Clone)]
+pub struct ComputeGraph(pub(crate) Rc<RefCell<ComputeGraphInner>>);
+
+impl Default for ComputeGraphInner {
+    fn default() -> Self {
         Self {
             id: GraphId::new(),
             size: 0,
@@ -45,51 +52,57 @@ impl ComputeGraph {
             visited_nodes: HashSet::new(),
         }
     }
+}
+
+impl ComputeGraph {
+    pub fn new() -> Self {
+        ComputeGraph(Rc::new(RefCell::new(ComputeGraphInner::default())))
+    }
 
     pub fn clear(&mut self) {
-        self.size = 0;
-        self.node_count = 0;
-        self.leaf_count = 0;
-        self.nodes.clear();
-        self.leafs.clear();
-        self.node_use_count.clear();
-        self.visited_nodes.clear();
+        self.0.borrow_mut().size = 0;
+        self.0.borrow_mut().node_count = 0;
+        self.0.borrow_mut().leaf_count = 0;
+        self.0.borrow_mut().nodes.clear();
+        self.0.borrow_mut().leafs.clear();
+        self.0.borrow_mut().node_use_count.clear();
+        self.0.borrow_mut().visited_nodes.clear();
     }
 
     pub fn id(&self) -> GraphId {
-        self.id
+        self.0.borrow().id
     }
 
     pub fn size(&self) -> usize {
-        self.size
+        self.0.borrow().size
     }
 
     pub fn node_count(&self) -> usize {
-        self.node_count
+        self.0.borrow().node_count
     }
 
     pub fn leaf_count(&self) -> usize {
-        self.leaf_count
+        self.0.borrow().leaf_count
     }
 
-    pub fn nodes(&self) -> &[TensorId] {
-        &self.nodes
+    pub fn nodes(&self) -> Ref<'_, [TensorId]> {
+        Ref::map(self.0.borrow(), |inner| inner.nodes.as_slice())
     }
 
-    pub fn leafs(&self) -> &[TensorId] {
-        &self.leafs
+    pub fn leafs(&self) -> Ref<'_, [TensorId]> {
+        Ref::map(self.0.borrow(), |inner| inner.leafs.as_slice())
     }
 
     pub fn use_count(&self, id: TensorId) -> usize {
-        self.node_use_count.get(&id).copied().unwrap_or(0)
+        self.0.borrow().node_use_count.get(&id).copied().unwrap_or(0)
     }
 
     pub fn contains(&self, id: TensorId) -> bool {
-        self.visited_nodes.contains(&id)
+        self.0.borrow().visited_nodes.contains(&id)
     }
 
     pub fn visit_parents(&mut self, context: &Context, input: TensorId) -> Result<()> {
-        if self.visited_nodes.contains(&input) {
+        if self.0.borrow().visited_nodes.contains(&input) {
             return Ok(());
         }
 
@@ -97,25 +110,25 @@ impl ComputeGraph {
             Error::msg(format!("tensor {} not found in context.tensor_tables", input.as_usize()))
                 .context("in ComputeGraph::visit_parents")
         })?;
-        let src_tensors = tensor.get_src_tensor();
+        let src_tensors = tensor.src_tensor();
 
-        self.visited_nodes.insert(input);
-        self.size += src_tensors.len();
+        self.0.borrow().visited_nodes.insert(input);
+        self.0.borrow().size += src_tensors.len();
 
         for src_id in src_tensors {
-            *self.node_use_count.entry(src_id).or_insert(0) += 1;
+            *self.0.borrow().node_use_count.entry(src_id).or_insert(0) += 1;
             self.visit_parents(context, src_id)?;
         }
-        if tensor.get_op_type() == TensorOpType::TensorNone
-            && tensor.get_tensor_type() == TensorType::FlagParam
+        if tensor.op_type() == TensorOpType::TensorNone
+            && tensor.tensor_type() == TensorType::FlagParam
         {
-            self.leaf_count += 1;
-            tensor.set_name(format!("{}_leaf_{}", self.id.0, self.leaf_count));
-            self.leafs.push(input);
+            self.0.borrow().leaf_count += 1;
+            tensor.set_name(format!("{}_leaf_{}", self.id(), self.leaf_count()));
+            self.0.borrow().leafs.push(input);
         } else {
-            self.node_count += 1;
-            tensor.set_name(format!("{}_node_{}", self.id.0, self.node_count));
-            self.nodes.push(input);
+            self.0.borrow().node_count += 1;
+            tensor.set_name(format!("{}_node_{}", self.id.0, self.node_count()));
+            self.0.borrow().nodes.push(input);
         }
 
         Ok(())
@@ -132,14 +145,14 @@ impl ComputeGraph {
             return self.visit_parents(context, input);
         }
 
-        let node_cnt_prev = self.node_count;
-        let leaf_cnt_prev = self.leaf_count;
+        let node_cnt_prev = self.0.borrow().node_count;
+        let leaf_cnt_prev = self.0.borrow().leaf_count;
         self.visit_parents(context, input)?;
-        let node_added = self.node_count > node_cnt_prev;
-        let leaf_added = self.leaf_count > leaf_cnt_prev;
+        let node_added = self.0.borrow().node_count > node_cnt_prev;
+        let leaf_added = self.0.borrow().leaf_count > leaf_cnt_prev;
         if node_added || leaf_added {
-            let new_nodes = &self.nodes[node_cnt_prev..self.node_count];
-            let new_leafs = &self.leafs[leaf_cnt_prev..self.leaf_count];
+            let new_nodes = &self.0.borrow().nodes[node_cnt_prev..self.0.borrow().node_count];
+            let new_leafs = &self.0.borrow().leafs[leaf_cnt_prev..self.0.borrow().leaf_count];
             if !new_nodes.contains(&input) && !new_leafs.contains(&input) {
                 return Err(Error::msg(format!(
                     "build_forward expected input tensor {} in newly added nodes or leafs",
@@ -159,6 +172,20 @@ impl ComputeGraph {
     }
 }
 
+impl AsRef<ComputeGraph> for ComputeGraph {
+    fn as_ref(&self) -> &ComputeGraph {
+        self
+    }
+}
+
+impl std::ops::Deref for ComputeGraph {
+    type Target = RefCell<ComputeGraphInner>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,7 +197,7 @@ mod tests {
         let mut ctx = Context::builder().tensor_pool_capacity(8).build();
         let shape = shape![2, 2, 1, 1];
         let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
-        (ctx, tensor.get_tensor_id())
+        (ctx, tensor.tensor_id())
     }
 
     fn new_test_tensor(ctx: &mut Context) -> crate::tensor::Tensor {
@@ -208,7 +235,7 @@ mod tests {
 
         assert_eq!(graph.node_count(), 1);
         assert_eq!(graph.leaf_count(), 0);
-        assert_eq!(graph.nodes(), &[input]);
+        assert_eq!(&*graph.nodes(), &[input]);
         assert!(graph.leafs().is_empty());
         assert!(graph.contains(input));
 
@@ -232,7 +259,7 @@ mod tests {
         assert_eq!(graph.node_count(), 0);
         assert_eq!(graph.leaf_count(), 1);
         assert!(graph.nodes().is_empty());
-        assert_eq!(graph.leafs(), &[input]);
+        assert_eq!(&*graph.leafs(), &[input]);
 
         let _ = ctx.get_tensor(input).map(|tensor| {
             assert_eq!(tensor.get_name(), format!("{}_leaf_1", graph.id().as_usize()));
@@ -284,7 +311,7 @@ mod tests {
 
         assert_eq!(graph.node_count(), 1);
         assert_eq!(graph.leaf_count(), 0);
-        assert_eq!(graph.nodes(), &[input]);
+        assert_eq!(&*graph.nodes(), &[input]);
         assert!(graph.contains(input));
     }
 
@@ -307,24 +334,24 @@ mod tests {
         let mut d = new_test_tensor(&mut ctx);
 
         mark_as_param_leaf(&mut a);
-        b.set_src_tensor(a.get_tensor_id());
-        c.set_src_tensor(a.get_tensor_id());
-        d.set_src_tensor(b.get_tensor_id());
-        d.set_src_tensor(c.get_tensor_id());
+        b.set_src_tensor(a.tensor_id());
+        c.set_src_tensor(a.tensor_id());
+        d.set_src_tensor(b.tensor_id());
+        d.set_src_tensor(c.tensor_id());
 
         let mut graph = ComputeGraph::new();
-        graph.visit_parents(&ctx, d.get_tensor_id()).unwrap();
+        graph.visit_parents(&ctx, d.tensor_id()).unwrap();
 
-        assert_eq!(graph.leafs(), &[a.get_tensor_id()]);
+        assert_eq!(&*graph.leafs(), &[a.tensor_id()]);
         assert_eq!(graph.node_count(), 3);
-        assert_eq!(graph.use_count(a.get_tensor_id()), 2);
-        assert_eq!(graph.use_count(b.get_tensor_id()), 1);
-        assert_eq!(graph.use_count(c.get_tensor_id()), 1);
+        assert_eq!(graph.use_count(a.tensor_id()), 2);
+        assert_eq!(graph.use_count(b.tensor_id()), 1);
+        assert_eq!(graph.use_count(c.tensor_id()), 1);
 
         let nodes = graph.nodes();
-        let b_idx = index_of(nodes, b.get_tensor_id());
-        let c_idx = index_of(nodes, c.get_tensor_id());
-        let d_idx = index_of(nodes, d.get_tensor_id());
+        let b_idx = index_of(nodes, b.tensor_id());
+        let c_idx = index_of(nodes, c.tensor_id());
+        let d_idx = index_of(nodes, d.tensor_id());
         assert!(b_idx < d_idx);
         assert!(c_idx < d_idx);
     }
@@ -342,7 +369,7 @@ mod tests {
 
         graph.build_forward(&ctx, input, true).unwrap();
 
-        assert_eq!(graph.leafs(), &[input]);
+        assert_eq!(&*graph.leafs(), &[input]);
         assert!(graph.nodes().is_empty());
     }
 
@@ -357,6 +384,6 @@ mod tests {
         graph.build_forward(&ctx, input, true).unwrap();
 
         assert_eq!(graph.node_count(), node_count);
-        assert_eq!(graph.nodes(), &[input]);
+        assert_eq!(&*graph.nodes(), &[input]);
     }
 }

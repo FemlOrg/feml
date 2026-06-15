@@ -1,14 +1,18 @@
-use crate::data_type::{DataType, TensorOpType, TensorType};
+use crate::context::Context;
+use crate::data_type::{get_type_size, DataType, TensorOpType, TensorType};
 use crate::defs::MAX_SRC;
 use crate::error::{Error, Result};
 use crate::layout::Layout;
+use crate::ops::OpParams;
 #[cfg(test)]
 use crate::shape;
 use crate::shape::Shape;
 use crate::storage::TensorStorage;
 use std::cell::Ref;
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::io::IntoInnerError;
+use std::rc::Rc;
+use std::rc::Weak;
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TensorId(usize);
@@ -61,7 +65,7 @@ impl TensorIdArray {
     }
 }
 
-pub struct TensorInner {
+pub(crate) struct TensorInner {
     pub(crate) id: TensorId,
     pub(crate) name: String,
     pub(crate) dtype: DataType,
@@ -72,10 +76,12 @@ pub struct TensorInner {
     pub(crate) view_tensor: Option<Tensor>,
     pub(crate) view_offset: usize,
     pub(crate) op_type: TensorOpType,
+    pub(crate) params: Option<OpParams>,
+    pub(crate) ctx: Weak<RefCell<Context>>,
 }
 
 #[derive(Clone)]
-pub struct Tensor(pub(crate) Arc<RefCell<TensorInner>>);
+pub struct Tensor(pub(crate) Rc<RefCell<TensorInner>>);
 
 impl TensorInner {
     pub(crate) fn default() -> Self {
@@ -90,13 +96,24 @@ impl TensorInner {
             view_tensor: None,
             view_offset: 0,
             op_type: TensorOpType::UNKNOWN,
+            params: None,
+            ctx: Weak::new(),
         }
+    }
+}
+
+impl TensorInner {
+    fn ctx(&self) -> Result<Context> {
+        self.ctx
+            .upgrade()
+            .map(|ctx| ctx.borrow().clone())
+            .ok_or_else(|| Error::msg("contexxt has been dropped!"))
     }
 }
 
 impl Tensor {
     pub fn new() -> Self {
-        Tensor(Arc::new(RefCell::new(TensorInner::default())))
+        Tensor(Rc::new(RefCell::new(TensorInner::default())))
     }
 
     pub(crate) fn set_tensor_id(&mut self, id: TensorId) -> &mut Self {
@@ -127,7 +144,6 @@ impl Tensor {
         {
             let mut inner = self.borrow_mut();
             inner.layout.shape = shape;
-            inner.length = length;
         }
         self
     }
@@ -150,7 +166,7 @@ impl Tensor {
     }
 
     pub fn name(&self) -> String {
-        self.borrow().name
+        self.borrow().name.clone()
     }
 
     pub fn set_op_type(&self, op_type: TensorOpType) -> &Self {
@@ -176,12 +192,12 @@ impl Tensor {
     }
 
     pub fn nbytes(&self) -> usize {
-        self.borrow().layout.nbytes(self.get_dtype())
+        self.borrow().layout.nbytes(self.dtype())
     }
 
     pub(crate) fn storage(&self) -> Result<Ref<'_, TensorStorage>> {
         let borrow = self.borrow();
-        if borrow.extra_storage.is_none() {
+        if borrow.storage.is_none() {
             return Err(Error::msg("extra_storage is None"));
         }
         Ok(Ref::map(borrow, |inner| inner.storage.as_ref().unwrap()))
@@ -193,7 +209,48 @@ impl Tensor {
     }
 
     pub fn element_size(&self) -> usize {
-        get_type_size(self.get_dtype())
+        get_type_size(self.dtype())
+    }
+
+    fn set_op(&mut self, op_kind: TensorOpType, op_params: OpParams, sources: &[TensorId]) {
+        self.borrow_mut().op_type = op_kind;
+        self.borrow_mut().params = Some(op_params);
+        for src in sources {
+            self.set_src_tensor(*src);
+        }
+    }
+
+    fn ctx(&self) -> Result<Context> {
+        self.borrow()
+            .ctx
+            .upgrade()
+            .map(|ctx| ctx.borrow().clone())
+            .ok_or_else(|| Error::msg("contexxt has been dropped!"))
+    }
+
+    fn mul_impl(&mut self, other: Tensor, inplace: bool) -> Result<Tensor> {
+        let mut ctx = self.ctx()?;
+        let mut result = if inplace {
+            ctx.new_tensor_view(self.clone())?
+        } else {
+            ctx.dup_tensor(self.clone())?
+        };
+
+        result.set_op(
+            TensorOpType::TensorOpMul,
+            OpParams::None,
+            &[self.tensor_id(), other.tensor_id()],
+        );
+
+        Ok(result)
+    }
+
+    pub fn mul(&mut self, other: Tensor) -> Result<Tensor> {
+        self.mul_impl(other, false)
+    }
+
+    pub fn mul_inplace(&mut self, other: Tensor) -> Result<Tensor> {
+        self.mul_impl(other, true)
     }
 }
 

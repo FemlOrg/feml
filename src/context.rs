@@ -4,7 +4,7 @@
 //! including memory management through object pools and table-based storage
 //! for tensors and compute graphs.
 
-use crate::compute_graph::{ComputeGraph, GraphId};
+use crate::compute_graph::{ComputeGraph, ComputeGraphInner, GraphId};
 use crate::data_type::{get_block_size, get_type_size, DataType};
 use crate::defs::MAX_DIMS;
 use crate::error::Result;
@@ -63,6 +63,7 @@ impl Default for ContextConfig {
 pub struct ContextInner {
     /// Object pool for tensor instances to reduce allocation overhead.
     pub tensor_pool: ObjectPool<TensorInner>,
+    pub graph_pool: ObjectPool<ComputeGraphInner>,
     /// Hash table mapping tensor IDs to tensor objects.
     pub tensor_tables: HashMap<TensorId, Tensor>,
     /// Hash table mapping graph IDs to compute graph objects.
@@ -100,6 +101,10 @@ impl ContextInner {
             tensor_pool: ObjectPool::with_capacity(
                 TensorInner::default,
                 config.tensor_pool_capacity,
+            ),
+            graph_pool: ObjectPool::with_capacity(
+                ComputeGraphInner::default,
+                config.graph_pool_cacacity,
             ),
             tensor_tables: HashMap::new(),
             graph_tables: HashMap::new(),
@@ -145,6 +150,7 @@ impl ContextInner {
         tensor_inner.dtype = dtype;
         tensor_inner.layout.shape = shape.clone();
         tensor_inner.id = TensorId::new();
+        tensor_inner.ctx = Rc::downgrade(&self.0);
 
         // Handle view source if provided
         if let Some(src) = view_src {
@@ -191,10 +197,23 @@ impl ContextInner {
             tensor_inner.layout.stride[i] = next_stride;
         }
 
-        let tensor = Tensor(Arc::new(RefCell::new(tensor_inner)));
+        let tensor = Tensor(Rc::new(RefCell::new(tensor_inner)));
         self.tensor_tables.insert(tensor.tensor_id(), tensor.clone());
 
         Ok(tensor)
+    }
+
+    fn new_graph_impl(&self, size: usize) -> Result<ComputeGraph> {
+        let mut graph_inner = self.graph_pool.get();
+        graph_inner.size = size;
+        graph_inner.nodes.reserve(size);
+        graph_inner.leafs.reserve(size);
+
+        let graph = ComputeGraph(Rc::new(RefCell::new(graph_inner)));
+
+        self.graph_tables.insert(graph_inner.id(), graph.clone());
+
+        Ok(graph)
     }
 }
 
@@ -235,8 +254,8 @@ impl Context {
     ///
     /// @return Result containing the new compute graph or an error.
     /// @note This method is not yet implemented.
-    pub fn new_graph(self: &Self) -> Result<ComputeGraph> {
-        todo!();
+    pub fn new_graph(self: &Self, size: usize) -> Result<ComputeGraph> {
+        self.borrow().new_graph_impl(size)
     }
 
     pub fn contain_tensor(&self, tensor_id: TensorId) -> bool {
@@ -256,34 +275,6 @@ impl Context {
             Error::msg(format!("tensor {} not found", tensor_id.as_usize()))
                 .context("in Context::get_tensor")
         })
-    }
-
-    fn mul_impl(&mut self, src0: Tensor, src1: Tensor, inplace: bool) -> Result<Tensor> {
-        let mut result = if inplace {
-            self.new_tensor_view(src0.clone())
-        } else {
-            self.dup_tensor(src0.clone())
-        };
-
-        match &mut result {
-            Ok(res) => {
-                res.set_src_tensor(src0.tensor_id());
-                res.set_src_tensor(src1.tensor_id());
-            }
-            Err(e) => {
-                eprintln!("{}", e);
-            }
-        }
-
-        result
-    }
-
-    pub fn mul(&mut self, src0: Tensor, src1: Tensor) -> Result<Tensor> {
-        self.mul_impl(src0, src1, false)
-    }
-
-    pub fn mul_inplace(&mut self, src0: Tensor, src1: Tensor) -> Result<Tensor> {
-        self.mul_impl(src0, src1, true)
     }
 }
 
