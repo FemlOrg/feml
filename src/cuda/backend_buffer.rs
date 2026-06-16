@@ -9,11 +9,11 @@ use crate::error::{Error, Result};
 use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
 use cuda_core::DeviceBuffer;
-use cuda_core::memory::{memcpy_dtoh_async, memcpy_htod_async, memset_d8_async};
+use cuda_core::memory::{memcpy_dtoh_async, memcpy_htod_sync, memset_d8_async};
 
 pub(crate) struct CudaBackendBuffer {
-    backend_ctx: Option<Rc<RefCell<CudaBackendContext>>>,
-    buffer: DeviceBuffer<u8>,
+    pub(super) backend_ctx: Option<Rc<RefCell<CudaBackendContext>>>,
+    pub(super) buffer: DeviceBuffer<u8>,
     usage: BackendBufferUsage,
     size: usize,
 }
@@ -114,23 +114,11 @@ impl BackendBuffer for CudaBackendBuffer {
 
         unsafe {
             let ptr = self.buffer.cu_deviceptr() as usize;
-            memcpy_htod_async(
-                (ptr + offset) as u64,
-                data.as_ptr() as *const std::ffi::c_void,
-                size,
-                self.backend_ctx.unwrap().current_stream.unwrap().cu_stream(),
-            )
-            .map_err(|e| {
-                Error::msg(format!("memcpy_htod_async failed with error code {}", e))
-                    .context("CudaBackendBuffer::set_tensor")
-            })?;
-
-            self.backend_ctx.unwrap().current_stream.as_ref().unwrap().synchronize().map_err(
-                |e| {
-                    Error::msg(format!("cuStreamSynchronize failed with error code {}", e))
-                        .context("CudaBackendBuffer::memset_tensor")
-                },
-            )?;
+            memcpy_htod_sync((ptr + offset) as u64, data.as_ptr() as *const std::ffi::c_void, size)
+                .map_err(|e| {
+                    Error::msg(format!("memcpy_htod_async failed with error code {}", e))
+                        .context("CudaBackendBuffer::set_tensor")
+                })?;
         }
 
         Ok(())
@@ -235,12 +223,17 @@ impl BackendBuffer for CudaBackendBuffer {
                     stream.cu_stream(),
                 );
             }
+
+            stream.synchronize().map_err(|e| {
+                Error::msg(format!("cuStreamSynchronize failed with error code {}", e))
+                    .context("CudaBackendBuffer::memset_tensor")
+            })?;
         }
 
         Ok(())
     }
 
-    fn get_usage(&self) -> Result<BackendBufferUsage> {
+    fn usage(&self) -> Result<BackendBufferUsage> {
         Ok(self.usage.clone())
     }
 

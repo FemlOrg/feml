@@ -33,6 +33,10 @@ impl Shape {
     pub fn iter(&self) -> std::slice::Iter<'_, usize> {
         self.dims[..self.rank].iter()
     }
+
+    pub(crate) fn nrows(&self) -> usize {
+        self.dims[1] * self.dims[2] * self.dims[3]
+    }
 }
 
 #[macro_export]

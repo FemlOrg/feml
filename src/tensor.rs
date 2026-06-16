@@ -1,6 +1,5 @@
 use crate::context::Context;
-use crate::context::ContextInner;
-use crate::data_type::{get_type_size, DataType, TensorOpType, TensorType};
+use crate::data_type::{DataType, TensorOpType, TensorType, get_type_size};
 use crate::defs::MAX_SRC;
 use crate::error::{Error, Result};
 use crate::layout::Layout;
@@ -212,6 +211,10 @@ impl Tensor {
 
     pub fn element_size(&self) -> usize {
         get_type_size(self.dtype())
+    }
+
+    pub fn nrows(&self) -> usize {
+        self.borrow_mut().layout.shape.nrows()
     }
 
     fn set_op(&mut self, op_kind: TensorOpType, op_params: OpParams, sources: &[TensorId]) {
