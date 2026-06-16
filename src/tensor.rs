@@ -12,6 +12,7 @@ use std::cell::Ref;
 use std::cell::RefCell;
 use std::io::IntoInnerError;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::rc::Weak;
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -65,7 +66,7 @@ impl TensorIdArray {
     }
 }
 
-pub(crate) struct TensorInner {
+pub struct TensorInner {
     pub(crate) id: TensorId,
     pub(crate) name: String,
     pub(crate) dtype: DataType,
@@ -77,7 +78,7 @@ pub(crate) struct TensorInner {
     pub(crate) view_offset: usize,
     pub(crate) op_type: TensorOpType,
     pub(crate) params: Option<OpParams>,
-    pub(crate) ctx: Weak<RefCell<Context>>,
+    pub(crate) ctx: Weak<RefCell<ContextInner>>,
 }
 
 #[derive(Clone)]
@@ -106,8 +107,8 @@ impl TensorInner {
     fn ctx(&self) -> Result<Context> {
         self.ctx
             .upgrade()
-            .map(|ctx| ctx.borrow().clone())
-            .ok_or_else(|| Error::msg("contexxt has been dropped!"))
+            .map(Context)
+            .ok_or_else(|| Error::msg("context has been dropped!"))
     }
 }
 
@@ -228,8 +229,8 @@ impl Tensor {
         self.borrow()
             .ctx
             .upgrade()
-            .map(|ctx| ctx.borrow().clone())
-            .ok_or_else(|| Error::msg("contexxt has been dropped!"))
+            .map(Context)
+            .ok_or_else(|| Error::msg("context has been dropped!"))
     }
 
     fn mul_impl(&mut self, other: Tensor, inplace: bool) -> Result<Tensor> {
@@ -328,7 +329,7 @@ mod tests {
 
         let name = "test_tensor".to_string();
         tensor.set_name(name.clone());
-        assert_eq!(tensor.get_name(), name);
+        assert_eq!(tensor.name(), name);
 
         for dtype in [
             DataType::U8,
@@ -340,8 +341,8 @@ mod tests {
             DataType::F32,
             DataType::F64,
         ] {
-            tensor.set_data_type(dtype);
-            assert_eq!(tensor.get_dtype(), dtype);
+            tensor.set_dtype(dtype);
+            assert_eq!(tensor.dtype(), dtype);
         }
 
         let shape = shape![2, 3, 4, 5];
@@ -367,7 +368,7 @@ mod tests {
 
         let _ = tensor
             .set_name("chained".to_string())
-            .set_data_type(DataType::F32)
+            .set_dtype(DataType::F32)
             .set_shape(shape![1, 2, 3, 4]);
 
         assert_eq!(tensor.name(), "chained".to_string());
@@ -378,7 +379,7 @@ mod tests {
     #[test]
     fn test_tensor_data() {
         let tensor = TensorInner::default();
-        assert!(tensor.self_storage.is_none());
+        assert!(tensor.storage.is_none());
     }
 
     #[test]
@@ -457,7 +458,7 @@ mod tests {
 
         for dtype in dtypes {
             let mut tensor = Tensor::new();
-            tensor.set_data_type(dtype);
+            tensor.set_dtype(dtype);
             assert_eq!(tensor.dtype(), dtype);
         }
     }

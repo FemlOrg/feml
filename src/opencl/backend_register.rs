@@ -1,4 +1,3 @@
-use super::backend_context::OpenclBackendContext;
 use super::backend_device::OpenclBackendDevice;
 use crate::{
     backend::{BackendDevice, BackendRegister},
@@ -6,7 +5,7 @@ use crate::{
 };
 use std::cell::RefCell;
 use std::sync::Once;
-use std::{any::Any, rc::Rc};
+use std::any::Any;
 
 static INIT: Once = Once::new();
 static mut REG: Option<*const dyn BackendRegister> = None;
@@ -21,7 +20,7 @@ impl BackendRegister for OpenclBackendRegister {
     }
 
     fn device_count(&self) -> usize {
-        self.devices.len()
+        self.devices.borrow().len()
     }
 
     fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>> {
@@ -41,6 +40,7 @@ impl BackendRegister for OpenclBackendRegister {
         let platforms = ocl::Platform::list();
 
         if platforms.is_empty() {
+            *self.devices.borrow_mut() = opencl_devices;
             return Ok(());
         }
 
@@ -54,7 +54,7 @@ impl BackendRegister for OpenclBackendRegister {
                 ocl::Context::builder().platform(platform.clone()).devices(&devices).build()?;
 
             for device in devices {
-                let mut ocl_device = OpenclBackendDevice {
+                let ocl_device = OpenclBackendDevice {
                     platform: platform.clone(),
                     platform_name: platform.name()?,
                     device: device.clone(),
@@ -63,22 +63,22 @@ impl BackendRegister for OpenclBackendRegister {
                     context: context.clone(),
                     backend_ctx: None,
                 };
-                self.devices.push(ocl_device);
+                opencl_devices.push(ocl_device);
             }
         }
 
+        *self.devices.borrow_mut() = opencl_devices;
         Ok(())
     }
 
     fn init_devices(&self) -> Result<()> {
-        let devices: Vec<OpenclBackendDevice> = std::mem::take(&mut *self.devices.borrow_mut());
-        let ctx = self.backend_ctx.clone();
-
-        let valid_devices: Vec<OpenclBackendDevice> =
-            devices.into_iter().filter(|device| device.init().is_ok()).collect();
-
-        *self.devices.borrow_mut() = valid_devices;
-
+        let mut devices = self.devices.borrow_mut();
+        let drained: Vec<OpenclBackendDevice> = devices.drain(..).collect();
+        let valid: Vec<OpenclBackendDevice> = drained
+            .into_iter()
+            .filter_map(|mut d| if d.init().is_ok() { Some(d) } else { None })
+            .collect();
+        *devices = valid;
         Ok(())
     }
 }
@@ -87,26 +87,24 @@ impl OpenclBackendRegister {
     pub fn init() -> &'static dyn BackendRegister {
         unsafe {
             INIT.call_once(|| {
-                let reg = Rc::try_unwrap(Self::new()).ok().unwrap().into_inner();
+                let reg = Self { devices: RefCell::new(Vec::new()) };
                 REG = Some(Box::into_raw(Box::new(reg)));
             });
             &*REG.unwrap()
         }
     }
 
-    pub fn opencl_device(&self, index: usize) -> Result<&OpenclBackendDevice> {
-        self.devices.get(index).ok_or_else(|| {
+    pub fn opencl_device(&self, index: usize) -> Result<OpenclBackendDevice> {
+        self.devices.borrow().get(index).cloned().ok_or_else(|| {
             Error::new(ErrorKind::DeviceNotFound {
                 backend: "opencl",
                 index,
-                count: self.devices.len(),
+                count: self.devices.borrow().len(),
             })
         })
     }
 
-    pub(crate) fn new() -> Rc<RefCell<Self>> {
-        let reg = Rc::new(RefCell::new(Self { devices: RefCell::new(Vec::new()) }));
-        reg.borrow_mut().backend_ctx.borrow_mut().register = Some(Rc::downgrade(&reg));
-        reg
+    pub fn new() -> Self {
+        Self { devices: RefCell::new(Vec::new()) }
     }
 }

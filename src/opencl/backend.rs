@@ -100,15 +100,15 @@ impl OpenclBackend {
     }
 
     fn compute_forward(&self, ctx: &Context, tensor: &Tensor) -> Result<()> {
-        let src_tensor = tensor.get_src_tensor();
-        match tensor.get_op_type() {
+        let src_tensor = tensor.src_tensor();
+        match tensor.op_type() {
             TensorOpType::TensorOpMul => {
                 let src0 = ctx.get_tensor(src_tensor[0])?;
                 let src1 = ctx.get_tensor(src_tensor[1])?;
                 mul(self, &src0, &src1, tensor)
             }
             _ => {
-                let op_name = format!("{:?}", tensor.get_op_type());
+                let op_name = format!("{:?}", tensor.op_type());
                 Err(Error::new(ErrorKind::UnsupportedBackendOp {
                     backend: "opencl",
                     op: "compute_forward",

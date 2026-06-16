@@ -75,7 +75,7 @@ pub struct ContextInner {
 /// This struct wraps the internal `Context_` in an `Arc<RefCell<>>` to allow
 /// shared mutable access across threads while maintaining interior mutability.
 #[derive(Clone)]
-pub struct Context(Rc<RefCell<ContextInner>>);
+pub struct Context(pub(crate) Rc<RefCell<ContextInner>>);
 
 impl AsRef<Context> for Context {
     fn as_ref(&self) -> &Context {
@@ -111,20 +111,9 @@ impl ContextInner {
         })
         .into()
     }
+}
 
-    fn contain_tensor_impl(&self, tensor_id: TensorId) -> bool {
-        self.tensor_tables.contains_key(&tensor_id)
-    }
-
-    /// Internal implementation for creating a new tensor.
-    ///
-    /// This method handles the core logic of tensor creation, including validation,
-    /// memory allocation, and layout computation.
-    ///
-    /// @param dtype The data type of the tensor elements.
-    /// @param shape The shape (dimensions) of the tensor.
-    /// @param view_src Optional source tensor for creating a view.
-    /// @return Result containing the new tensor or an error.
+impl Context {
     fn new_tensor_impl(
         self: &mut Self,
         dtype: DataType,
@@ -145,7 +134,7 @@ impl ContextInner {
             }));
         }
 
-        let mut tensor_inner = self.tensor_pool.get(); // This operation always succeeds as ObjectPool provides objects
+        let mut tensor_inner = self.borrow_mut().tensor_pool.get();
 
         tensor_inner.dtype = dtype;
         tensor_inner.layout.shape = shape.clone();
@@ -154,8 +143,7 @@ impl ContextInner {
 
         // Handle view source if provided
         if let Some(src) = view_src {
-            // Verify source tensor exists in the context
-            if !self.contain_tensor_impl(src.get_tensor_id()) {
+            if !self.contain_tensor(src.tensor_id()) {
                 return Err(Error::msg("view source tensor not found in context")
                     .context("in new_tensor_impl"));
             }
@@ -198,26 +186,24 @@ impl ContextInner {
         }
 
         let tensor = Tensor(Rc::new(RefCell::new(tensor_inner)));
-        self.tensor_tables.insert(tensor.tensor_id(), tensor.clone());
+        self.borrow_mut().tensor_tables.insert(tensor.tensor_id(), tensor.clone());
 
         Ok(tensor)
     }
 
-    fn new_graph_impl(&self, size: usize) -> Result<ComputeGraph> {
-        let mut graph_inner = self.graph_pool.get();
+    pub fn new_graph(&mut self, size: usize) -> Result<ComputeGraph> {
+        let mut graph_inner = self.borrow_mut().graph_pool.get();
+        let id = graph_inner.id;
         graph_inner.size = size;
         graph_inner.nodes.reserve(size);
         graph_inner.leafs.reserve(size);
 
         let graph = ComputeGraph(Rc::new(RefCell::new(graph_inner)));
 
-        self.graph_tables.insert(graph_inner.id(), graph.clone());
+        self.borrow_mut().graph_tables.insert(id, graph.clone());
 
         Ok(graph)
     }
-}
-
-impl Context {
     /// Creates a new tensor with the specified data type and shape.
     ///
     /// This is the public API for tensor creation. It delegates to the internal
@@ -227,16 +213,16 @@ impl Context {
     /// @param shape The shape (dimensions) of the tensor.
     /// @return Result containing the new tensor or an error.
     pub fn new_tensor(self: &mut Self, dtype: DataType, shape: &Shape) -> Result<Tensor> {
-        let tensor = self.borrow_mut().new_tensor_impl(dtype, shape, None)?;
+        let mut tensor = self.new_tensor_impl(dtype, shape, None)?;
         Ok(tensor)
     }
 
     pub fn new_tensor_view(self: &mut Self, view_src: Tensor) -> Result<Tensor> {
-        let dtype = view_src.get_dtype();
-        let shape = view_src.get_shape();
+        let dtype = view_src.dtype();
+        let shape = view_src.shape();
         let stride = view_src.borrow().layout.stride;
 
-        let tensor = self.borrow_mut().new_tensor_impl(dtype, &shape, Some(view_src.clone()))?;
+        let tensor = self.new_tensor_impl(dtype, &shape, Some(view_src.clone()))?;
 
         tensor.borrow_mut().layout.stride = stride;
 
@@ -247,19 +233,11 @@ impl Context {
     /// This method is a convenience wrapper around `new_tensor` that extracts the necessary
     /// information from the source tensor.
     pub fn dup_tensor(self: &mut Self, src: Tensor) -> Result<Tensor> {
-        self.new_tensor(src.get_dtype(), &src.get_shape())
-    }
-
-    /// Creates a new compute graph.
-    ///
-    /// @return Result containing the new compute graph or an error.
-    /// @note This method is not yet implemented.
-    pub fn new_graph(self: &Self, size: usize) -> Result<ComputeGraph> {
-        self.borrow().new_graph_impl(size)
+        self.new_tensor(src.dtype(), &src.shape())
     }
 
     pub fn contain_tensor(&self, tensor_id: TensorId) -> bool {
-        self.borrow().contain_tensor_impl(tensor_id)
+        self.borrow().tensor_tables.contains_key(&tensor_id)
     }
 
     pub fn with_config(config: ContextConfig) -> Self {
@@ -299,7 +277,7 @@ mod tests {
         let tensor = ctx.new_tensor(DataType::F32, &shape).unwrap();
         assert_eq!(tensor.borrow().dtype, DataType::F32);
         assert_eq!(tensor.borrow().layout.shape, shape);
-        assert!(ctx.contain_tensor(tensor.get_tensor_id()));
+        assert!(ctx.contain_tensor(tensor.tensor_id()));
     }
 
     #[test]
@@ -325,14 +303,14 @@ mod tests {
         let mut ctx = Context::builder().tensor_pool_capacity(10).build();
         let shape = shape![2, 3, 4, 5];
         let src_tensor = ctx.new_tensor(DataType::I32, &shape).unwrap();
-        assert!(ctx.contain_tensor(src_tensor.get_tensor_id()));
+        assert!(ctx.contain_tensor(src_tensor.tensor_id()));
         let view_tensor = ctx.new_tensor_view(src_tensor.clone()).unwrap();
         assert_eq!(view_tensor.borrow().dtype, DataType::I32);
         assert_eq!(view_tensor.borrow().layout.shape, shape);
         for i in 0..MAX_DIMS {
             assert_eq!(view_tensor.borrow().layout.stride[i], src_tensor.borrow().layout.stride[i]);
         }
-        assert!(ctx.contain_tensor(view_tensor.get_tensor_id()));
+        assert!(ctx.contain_tensor(view_tensor.tensor_id()));
     }
 
     #[test]

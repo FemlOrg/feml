@@ -47,9 +47,9 @@ impl BackendBuffer for OpenclBackendBuffer {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
-        let storage = tensor.storage().as_ref().ok_or_else(|| Error::msg("storage is none"))?;
+        let storage = tensor.storage()?;
 
-        if !matches!(storage, TensorStorage::Opencl { .. }) {
+        if !matches!(*storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
         }
 
@@ -71,9 +71,9 @@ impl BackendBuffer for OpenclBackendBuffer {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
-        let storage = tensor.storage().as_ref().ok_or_else(|| Error::msg("storage is none"))?;
+        let storage = tensor.storage()?;
 
-        if !matches!(storage, TensorStorage::Opencl { .. }) {
+        if !matches!(*storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
         }
 
@@ -96,9 +96,9 @@ impl BackendBuffer for OpenclBackendBuffer {
         let ctx = self.backend_ctx.as_ref().unwrap().borrow();
         let cl_queue = &ctx.queue;
 
-        let storage = tensor.storage().as_ref().ok_or_else(|| Error::msg("storage is none"))?;
+        let storage = tensor.storage()?;
 
-        if !matches!(storage, TensorStorage::Opencl { .. }) {
+        if !matches!(*storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
         }
 
