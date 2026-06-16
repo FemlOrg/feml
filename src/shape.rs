@@ -2,8 +2,8 @@ use crate::defs::MAX_DIMS;
 use std::ops::Index;
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Shape {
-    pub(crate) dims: [usize; MAX_DIMS],
-    pub(crate) rank: usize,
+    pub dims: [usize; MAX_DIMS],
+    pub rank: usize,
 }
 
 impl Index<usize> for Shape {

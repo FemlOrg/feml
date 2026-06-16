@@ -24,7 +24,9 @@ pub(super) struct OpenclBackendContext {
     pub(super) context: ocl::Context,
     pub(super) queue: ocl::Queue,
     pub(super) wave_size: i32,
+    #[allow(dead_code)]
     pub(super) max_alloc_size: usize,
+    #[allow(dead_code)]
     pub(super) alignment: usize,
     pub(super) gpu_family: OpenclGpuFamlily,
     pub(super) kernels: Option<HashMap<ClKernelId, ocl::Kernel>>,
@@ -88,18 +90,10 @@ impl OpenclBackendContext {
     where
         F: FnOnce(&mut Kernel) -> Result<()>,
     {
-        let kernel = self
-            .kernels
-            .as_mut()
-            .unwrap()
-            .get_mut(&kernel_id)
-            .ok_or_else(|| {
-                Error::msg(format!(
-                    "Kernel {:?} not found in OpenCL backend context",
-                    kernel_id
-                ))
+        let kernel = self.kernels.as_mut().unwrap().get_mut(&kernel_id).ok_or_else(|| {
+            Error::msg(format!("Kernel {:?} not found in OpenCL backend context", kernel_id))
                 .context("in OpenclBackendContext::with_kernel")
-            })?;
+        })?;
         f(kernel)
     }
 }

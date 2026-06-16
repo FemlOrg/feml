@@ -1,5 +1,6 @@
 use crate::context::Context;
-use crate::data_type::{DataType, TensorOpType, TensorType, get_type_size};
+use crate::context::ContextInner;
+use crate::data_type::{get_type_size, DataType, TensorOpType, TensorType};
 use crate::defs::MAX_SRC;
 use crate::error::{Error, Result};
 use crate::layout::Layout;
@@ -10,9 +11,7 @@ use crate::shape::Shape;
 use crate::storage::TensorStorage;
 use std::cell::Ref;
 use std::cell::RefCell;
-use std::io::IntoInnerError;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::rc::Weak;
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -105,10 +104,7 @@ impl TensorInner {
 
 impl TensorInner {
     fn ctx(&self) -> Result<Context> {
-        self.ctx
-            .upgrade()
-            .map(Context)
-            .ok_or_else(|| Error::msg("context has been dropped!"))
+        self.ctx.upgrade().map(Context).ok_or_else(|| Error::msg("context has been dropped!"))
     }
 }
 
@@ -122,16 +118,16 @@ impl Tensor {
         self
     }
 
-    pub(crate) fn tensor_id(&self) -> TensorId {
+    pub fn tensor_id(&self) -> TensorId {
         self.borrow().id
     }
 
-    pub(crate) fn set_src_tensor(&mut self, src_tensor_id: TensorId) -> &mut Self {
+    pub fn set_src_tensor(&mut self, src_tensor_id: TensorId) -> &mut Self {
         self.borrow_mut().src_tensor.push(src_tensor_id);
         self
     }
 
-    pub(crate) fn src_tensor(&self) -> Vec<TensorId> {
+    pub fn src_tensor(&self) -> Vec<TensorId> {
         self.borrow().src_tensor.as_slice().to_vec()
     }
 
@@ -141,7 +137,7 @@ impl Tensor {
     }
 
     pub fn set_shape(&self, shape: Shape) -> &Self {
-        let length = shape.len();
+        let _length = shape.len();
         {
             let mut inner = self.borrow_mut();
             inner.layout.shape = shape;

@@ -19,7 +19,7 @@ pub struct OpenclBackend {
 
 impl Backend for OpenclBackend {
     fn name(&self) -> &str {
-        "opencl"
+        "OpenCL"
     }
 
     fn synchronize(&self) -> Result<()> {
@@ -31,7 +31,7 @@ impl Backend for OpenclBackend {
 
     fn graph_compute(&self, ctx: &Context, graph: &mut ComputeGraph) -> Result<()> {
         for node in graph.nodes().iter() {
-            let tensor = ctx.tensor(*node)?;
+            let tensor = ctx.get_tensor(*node)?;
             self.compute_forward(ctx, &tensor)?;
         }
 
@@ -41,7 +41,7 @@ impl Backend for OpenclBackend {
     fn write_async(
         &self,
         _tensor: Tensor,
-        _data: *mut u8,
+        _data: &mut [u8],
         _offset: usize,
         _size: usize,
     ) -> Result<()> {
@@ -52,7 +52,7 @@ impl Backend for OpenclBackend {
     fn read_async(
         &self,
         _tensor: Tensor,
-        _data: *mut u8,
+        _data: &mut [u8],
         _offset: usize,
         _size: usize,
     ) -> Result<()> {
