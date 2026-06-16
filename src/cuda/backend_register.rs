@@ -11,10 +11,9 @@ use std::rc::Rc;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
-pub(super) static mut REG: Option<*const dyn BackendRegister> = None;
+static mut REG: Option<*const dyn BackendRegister> = None;
 
-//In CUDA , each device has its own CudaContext , whereas only a single global CudaBackendContext exists.
-pub(super) struct CudaBackendRegister {
+pub(crate) struct CudaBackendRegister {
     pub(super) backend_ctx: Rc<RefCell<CudaBackendContext>>,
     pub(super) devices: RefCell<Vec<CudaBackendDevice>>,
 }
@@ -29,7 +28,7 @@ impl BackendRegister for CudaBackendRegister {
     }
 
     fn device(&self, index: usize) -> Result<Box<dyn BackendDevice>> {
-        Ok(Box::new(self.cuda_device(index)?.clone()))
+        Ok(Box::new(self.cuda_device(index)?))
     }
 
     fn probe_devices(&self) -> Result<()> {
@@ -44,7 +43,7 @@ impl BackendRegister for CudaBackendRegister {
         let mut cuda_devices = self.devices.borrow_mut();
         for device_id in 0..device_count {
             let mut device_info = CudaDeviceInfo::default();
-            let mut prop: cuda_bindings::CUdevprop_st;
+            let mut prop: cuda_bindings::CUdevprop_st = unsafe { std::mem::zeroed() };
             unsafe {
                 cuda_bindings::cuDeviceGetProperties(&mut prop, device_id);
             }
@@ -59,11 +58,10 @@ impl BackendRegister for CudaBackendRegister {
             device_info.regs_per_block = prop.regsPerBlock;
             device_info.warp_size = prop.SIMDWidth;
 
-            let context = CudaContext::new(device_id as usize).unwrap();
-            let stream = context.default_stream();
+            let context = CudaContext::new(device_id as usize)?;
             device_info.name = context.device_name()? + &device_id.to_string();
-            let cuda_device =
-                CudaBackendDevice { info: device_info, context, stream, backend_ctx: None };
+
+            let cuda_device = CudaBackendDevice { info: device_info, context, backend_ctx: None };
 
             cuda_devices.push(cuda_device);
         }
@@ -75,8 +73,10 @@ impl BackendRegister for CudaBackendRegister {
         let devices: Vec<CudaBackendDevice> = std::mem::take(&mut *self.devices.borrow_mut());
         let ctx = self.backend_ctx.clone();
 
-        let valid_devices: Vec<CudaBackendDevice> =
-            devices.into_iter().filter(|device| device.init(ctx.clone()).is_ok()).collect();
+        let valid_devices: Vec<CudaBackendDevice> = devices
+            .into_iter()
+            .filter_map(|mut device| device.init(ctx.clone()).ok().map(|_| device))
+            .collect();
 
         *self.devices.borrow_mut() = valid_devices;
 
@@ -96,29 +96,25 @@ impl CudaBackendRegister {
     pub fn init() -> &'static dyn BackendRegister {
         unsafe {
             INIT.call_once(|| {
-                let reg = Rc::try_unwrap(Self::new()).ok().unwrap().into_inner();
+                let reg = Self::new();
                 REG = Some(Box::into_raw(Box::new(reg)));
             });
             &*REG.unwrap()
         }
     }
 
-    fn cuda_device(&self, index: usize) -> Result<&CudaBackendDevice> {
-        self.devices.get(index).ok_or_else(|| {
-            Error::new(ErrorKind::DeviceNotFound {
-                backend: "cuda",
-                index,
-                count: self.devices.len(),
-            })
-        })
-    }
-
-    fn new() -> Rc<RefCell<Self>> {
-        let reg = Rc::new(RefCell::new(Self {
+    pub fn new() -> Self {
+        Self {
             backend_ctx: Rc::new(RefCell::new(CudaBackendContext::new())),
             devices: RefCell::new(Vec::new()),
-        }));
-        reg.borrow_mut().backend_ctx.borrow_mut().register = Some(Rc::downgrade(&reg));
-        reg
+        }
+    }
+
+    fn cuda_device(&self, index: usize) -> Result<CudaBackendDevice> {
+        let len = self.devices.borrow().len();
+        let devices = self.devices.borrow();
+        devices.get(index).cloned().ok_or_else(|| {
+            Error::new(ErrorKind::DeviceNotFound { backend: "cuda", index, count: len })
+        })
     }
 }

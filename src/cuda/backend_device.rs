@@ -4,12 +4,12 @@ use crate::backend::{Backend, BackendBuffer, BackendDevice, DeviceInfo};
 use crate::data_type::TensorOpType;
 use crate::error::{Error, Result};
 use crate::tensor::Tensor;
-use cuda_core::{CudaContext, CudaStream};
+use cuda_core::CudaContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct CudaDeviceInfo {
     pub(super) device_id: i32,
     pub(super) name: String,
@@ -23,17 +23,17 @@ pub(super) struct CudaDeviceInfo {
     pub(super) warp_size: i32,             // Number of threads in a dispatch
 }
 
+#[derive(Clone)]
 pub struct CudaBackendDevice {
     pub(super) info: CudaDeviceInfo,
     pub(super) context: Arc<CudaContext>,
-    pub(super) stream: Arc<CudaStream>,
     pub(super) backend_ctx: Option<Rc<RefCell<CudaBackendContext>>>,
 }
 
 impl BackendDevice for CudaBackendDevice {
     fn init_backend(&self) -> Result<Box<dyn Backend>> {
-        let ctx = self.backend_ctx.unwrap();
-        Ok(Box::new(CudaBackend { backend_ctx: ctx.clone() }))
+        let ctx = self.backend_ctx.clone().ok_or_else(|| Error::msg("backend_ctx is none"))?;
+        Ok(Box::new(CudaBackend { backend_ctx: ctx }))
     }
 
     fn supports_op(&self, op_type: TensorOpType) -> Result<bool> {
@@ -43,15 +43,15 @@ impl BackendDevice for CudaBackendDevice {
         }
     }
 
-    fn offload_op(&self, tensor: Tensor) -> Result<bool> {
+    fn offload_op(&self, _tensor: Tensor) -> Result<bool> {
         todo!()
     }
 
     fn buffer_from_host_ptr(
         &self,
-        ptr: &mut [u8],
-        size: usize,
-        max_tensor_size: usize,
+        _ptr: &mut [u8],
+        _size: usize,
+        _max_tensor_size: usize,
     ) -> Result<Box<dyn BackendBuffer>> {
         Err(Error::msg("not support buffer_from_host_ptr!"))
     }
@@ -78,7 +78,7 @@ impl BackendDevice for CudaBackendDevice {
 }
 
 impl CudaBackendDevice {
-    pub(super) fn init(&self, backend_ctx: Rc<RefCell<CudaBackendContext>>) -> Result<()> {
+    pub(super) fn init(&mut self, backend_ctx: Rc<RefCell<CudaBackendContext>>) -> Result<()> {
         if self.backend_ctx.is_some() {
             return Ok(());
         }

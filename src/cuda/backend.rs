@@ -10,11 +10,11 @@ use crate::data_type::TensorOpType;
 use crate::error::{Error, ErrorKind, Result};
 use crate::tensor::Tensor;
 use cuda_core::DeviceBuffer;
-use cuda_core::memory::{memcpy_dtoh_async, memcpy_htod_async};
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
-pub(super) struct CudaBackend {
+
+pub(crate) struct CudaBackend {
     pub(super) backend_ctx: Rc<RefCell<CudaBackendContext>>,
 }
 
@@ -31,7 +31,7 @@ impl Backend for CudaBackend {
 
     fn graph_compute(&self, ctx: &Context, graph: &mut ComputeGraph) -> Result<()> {
         for node in graph.nodes().iter() {
-            let tensor = ctx.tensor(*node)?;
+            let tensor = ctx.get_tensor(*node)?;
             self.compute_forward(ctx, &tensor)?;
         }
 
@@ -40,63 +40,27 @@ impl Backend for CudaBackend {
 
     fn write_async(
         &self,
-        tensor: Tensor,
-        data: &mut [u8],
-        offset: usize,
-        size: usize,
+        _tensor: Tensor,
+        _data: &mut [u8],
+        _offset: usize,
+        _size: usize,
     ) -> Result<()> {
-        self.backend_ctx.unwrap().set_device(self.backend_ctx.unwrap().current_device_id.unwrap());
-        let storage = tensor.get_extra_storage()?;
-        let offset = storage.offset();
-
-        unsafe {
-            let ptr = self.buffer.cu_deviceptr() as usize;
-            memcpy_htod_async(
-                (ptr + offset) as u64,
-                data.as_ptr() as *const std::ffi::c_void,
-                size,
-                self.backend_ctx.unwrap().current_stream.unwrap().cu_stream(),
-            )
-            .map_err(|e| {
-                Error::msg(format!("memcpy_htod_async failed with error code {}", e))
-                    .context("CudaBackendBuffer::set_tensor")
-            })?;
-        }
-
-        Ok(())
+        todo!()
     }
 
     fn read_async(
         &self,
-        tensor: Tensor,
-        data: &mut [u8],
-        offset: usize,
-        size: usize,
+        _tensor: Tensor,
+        _data: &mut [u8],
+        _offset: usize,
+        _size: usize,
     ) -> Result<()> {
-        self.backend_ctx.unwrap().set_device(self.backend_ctx.unwrap().current_device_id.unwrap());
-        let storage = tensor.get_extra_storage()?;
-        let offset = storage.offset();
-
-        unsafe {
-            let ptr = self.buffer.cu_deviceptr() as usize;
-            memcpy_dtoh_async(
-                data.as_mut_ptr(),
-                (ptr + offset) as u64,
-                size,
-                self.backend_ctx.unwrap().current_stream.unwrap().cu_stream(),
-            )
-            .map_err(|e| {
-                Error::msg(format!("memcpy_dtoh_async failed with error code {}", e))
-                    .context("CudaBackendBuffer::get_tensor")
-            })?;
-        }
-
-        Ok(())
+        todo!()
     }
 
     fn copy_async(&self, src: Tensor, dst: Tensor) -> Result<()> {
-        let src_storage = src.get_extra_storage()?;
-        let dst_storage = dst.get_extra_storage()?;
+        let src_storage = &*src.storage()?;
+        let dst_storage = &*dst.storage()?;
 
         let src_buffer =
             src_storage.as_cuda().ok_or_else(|| Error::msg("src tensor storage is not CUDA"))?;
@@ -119,7 +83,7 @@ impl Backend for CudaBackend {
         let dst_ptr = dst_buffer.buffer.cu_deviceptr() + dst_offset as u64;
         let src_bytes = src.nbytes();
 
-        let stream = src_backend_ctx.borrow().ensure_current_stream()?;
+        let stream = src_backend_ctx.borrow_mut().ensure_current_stream()?;
         let same_device = src_backend_ctx.borrow().current_device_id
             == dst_backend_ctx.borrow().current_device_id;
 
@@ -164,7 +128,7 @@ impl Backend for CudaBackend {
         size: usize,
         usage: BackendBufferUsage,
     ) -> Result<Box<dyn BackendBuffer>> {
-        let stream = self.backend_ctx.borrow().ensure_current_stream()?;
+        let stream = self.backend_ctx.borrow_mut().ensure_current_stream()?;
         DeviceBuffer::<u8>::zeroed(&stream, size)
             .map(|buffer| {
                 Box::new(CudaBackendBuffer::new(
@@ -191,26 +155,35 @@ impl CudaBackend {
         let reg =
             CudaBackendRegister::init().as_any().downcast_ref::<CudaBackendRegister>().unwrap();
         let device = reg.device(device_id as usize)?;
+        let cuda_device = device
+            .as_any()
+            .downcast_ref::<super::backend_device::CudaBackendDevice>()
+            .ok_or_else(|| Error::msg("device is not a CUDA device"))?;
 
-        Ok(Box::new(Self { backend_ctx: device.backend_ctx.as_ref().unwrap().clone() }))
+        Ok(Box::new(Self {
+            backend_ctx: cuda_device
+                .backend_ctx
+                .clone()
+                .ok_or_else(|| Error::msg("backend_ctx is none"))?,
+        }))
     }
 
     fn compute_forward(&self, ctx: &Context, tensor: &Tensor) -> Result<()> {
-        let src_tensor = tensor.get_src_tensor();
-        match tensor.get_op_type() {
+        let src_tensor = tensor.src_tensor();
+        match tensor.op_type() {
             TensorOpType::TensorOpMul => {
                 let src0 = ctx.get_tensor(src_tensor[0])?;
                 let src1 = ctx.get_tensor(src_tensor[1])?;
                 mul(self, &src0, &src1, tensor)
             }
             _ => {
-                let op_name = format!("{:?}", tensor.get_op_type());
+                let op_name = format!("{:?}", tensor.op_type());
                 Err(Error::new(ErrorKind::UnsupportedBackendOp {
                     backend: "cuda",
                     op: "compute_forward",
                 })
                 .context(format!("unsupported op type: {}", op_name))
-                .context("in OpenclBackend::compute_forward"))
+                .context("in CudaBackend::compute_forward"))
             }
         }
     }
