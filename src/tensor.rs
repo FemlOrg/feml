@@ -12,6 +12,7 @@ use std::cell::Ref;
 use std::cell::RefCell;
 use std::io::IntoInnerError;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::rc::Weak;
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -65,7 +66,7 @@ impl TensorIdArray {
     }
 }
 
-pub(crate) struct TensorInner {
+pub struct TensorInner {
     pub(crate) id: TensorId,
     pub(crate) name: String,
     pub(crate) dtype: DataType,
@@ -324,7 +325,7 @@ mod tests {
 
         let name = "test_tensor".to_string();
         tensor.set_name(name.clone());
-        assert_eq!(tensor.get_name(), name);
+        assert_eq!(tensor.name(), name);
 
         for dtype in [
             DataType::U8,
@@ -336,8 +337,8 @@ mod tests {
             DataType::F32,
             DataType::F64,
         ] {
-            tensor.set_data_type(dtype);
-            assert_eq!(tensor.get_dtype(), dtype);
+            tensor.set_dtype(dtype);
+            assert_eq!(tensor.dtype(), dtype);
         }
 
         let shape = shape![2, 3, 4, 5];
@@ -363,7 +364,7 @@ mod tests {
 
         let _ = tensor
             .set_name("chained".to_string())
-            .set_data_type(DataType::F32)
+            .set_dtype(DataType::F32)
             .set_shape(shape![1, 2, 3, 4]);
 
         assert_eq!(tensor.name(), "chained".to_string());
@@ -374,7 +375,7 @@ mod tests {
     #[test]
     fn test_tensor_data() {
         let tensor = TensorInner::default();
-        assert!(tensor.self_storage.is_none());
+        assert!(tensor.storage.is_none());
     }
 
     #[test]
@@ -393,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_tensor_as_ref() {
-        let tensor = Tensor(Arc::new(RefCell::new(TensorInner::default())));
+        let tensor = Tensor(Rc::new(RefCell::new(TensorInner::default())));
         let refed: &Tensor = tensor.as_ref();
 
         assert_eq!(std::ptr::eq(refed, &tensor), true);
@@ -453,7 +454,7 @@ mod tests {
 
         for dtype in dtypes {
             let mut tensor = Tensor::new();
-            tensor.set_data_type(dtype);
+            tensor.set_dtype(dtype);
             assert_eq!(tensor.dtype(), dtype);
         }
     }

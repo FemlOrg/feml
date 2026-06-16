@@ -71,7 +71,7 @@ impl BackendBuffer for CpuBackendBuffer {
             std::ptr::copy_nonoverlapping(
                 self.buffers.as_ptr().add(dst_offset),
                 self.buffers.as_ptr().add(src_offset),
-                _src.borrow().get_length(),
+                _src.borrow().length(),
             );
         }
         Ok(())

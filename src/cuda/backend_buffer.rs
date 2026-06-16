@@ -35,7 +35,7 @@ impl BackendBuffer for CudaBackendBuffer {
     }
 
     fn init_tensor(&self, mut tensor: Tensor, offset: usize) -> Result<()> {
-        if !is_quantized(tensor.get_dtype())
+        if !is_quantized(tensor.dtype())
             || tensor.borrow().view_tensor.is_some()
             || self.usage == BackendBufferUsage::Compute
         {

@@ -1,6 +1,6 @@
-use crate::backend::{Backend, BackendBuffer, BackendDevice, BackendRegister};
+use crate::backend::{Backend, BackendDevice, BackendRegister};
 use crate::error::{Error, Result};
-use crate::opencl::backend_register::OpenclBackendRegister;
+
 pub struct Registry {
     registers: Vec<Box<dyn BackendRegister>>,
 }
@@ -11,18 +11,21 @@ impl Registry {
 
         #[cfg(feature = "cpu")]
         {
+            use crate::cpu::backend_register::CpuBackendRegister;
             let reg = CpuBackendRegister::new();
             reg.probe_devices()?;
             registers.push(Box::new(reg));
         }
         #[cfg(feature = "opencl")]
         {
+            use crate::opencl::backend_register::OpenclBackendRegister;
             let reg = OpenclBackendRegister::new();
             reg.probe_devices()?;
             registers.push(Box::new(reg));
         }
         #[cfg(feature = "cuda")]
         {
+            use crate::cuda::backend_register::CudaBackendRegister;
             let reg = CudaBackendRegister::new();
             reg.probe_devices()?;
             registers.push(Box::new(reg));
@@ -76,19 +79,26 @@ impl Registry {
     pub fn open_best(&self) -> Result<Box<dyn Backend>> {
         if let Some(reg) = self.find("CUDA") {
             if reg.device_count() > 0 {
-                return self.open("CUDA", 0);
+                return self.open_backend("CUDA", 0);
             }
         }
         if let Some(reg) = self.find("OpenCL") {
             if reg.device_count() > 0 {
-                return self.open("OpenCL", 0);
+                return self.open_backend("OpenCL", 0);
             }
         }
         if let Some(reg) = self.find("cpu") {
             if reg.device_count() > 0 {
-                return self.open("cpu", 0);
+                return self.open_backend("cpu", 0);
             }
         }
         Err(Error::msg("no backend available"))
+    }
+
+    pub fn best(&self) -> Option<&dyn BackendRegister> {
+        self.find("CUDA")
+            .or_else(|| self.find("OpenCL"))
+            .or_else(|| self.find("cpu"))
+            .filter(|r| r.device_count() > 0)
     }
 }
