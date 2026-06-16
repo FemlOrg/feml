@@ -356,6 +356,13 @@ impl From<ocl::Error> for Error {
     }
 }
 
+#[cfg(feature = "cuda")]
+impl From<cuda_core::DriverError> for Error {
+    fn from(e: cuda_core::DriverError) -> Self {
+        Error::msg(format!("CUDA driver error: {}", e))
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]

@@ -137,12 +137,7 @@ impl ComputeGraph {
         Ok(())
     }
 
-    pub fn build_forward(
-        &self,
-        context: &Context,
-        input: TensorId,
-        expand: bool,
-    ) -> Result<()> {
+    pub fn build_forward(&self, context: &Context, input: TensorId, expand: bool) -> Result<()> {
         if !expand {
             self.clear();
             return self.visit_parents(context, input);
@@ -162,8 +157,8 @@ impl ComputeGraph {
                     input.as_usize()
                 ))
                 .context("in ComputeGraph::build_forward"));
+            }
         }
-    }
 
         Ok(())
     }
@@ -342,4 +337,3 @@ mod tests {
         assert_eq!(&*graph.nodes(), &[input]);
     }
 }
-
