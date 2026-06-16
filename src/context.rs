@@ -75,7 +75,7 @@ pub struct ContextInner {
 /// This struct wraps the internal `Context_` in an `Arc<RefCell<>>` to allow
 /// shared mutable access across threads while maintaining interior mutability.
 #[derive(Clone)]
-pub struct Context(Rc<RefCell<ContextInner>>);
+pub struct Context(pub(crate) Rc<RefCell<ContextInner>>);
 
 impl AsRef<Context> for Context {
     fn as_ref(&self) -> &Context {
@@ -134,7 +134,7 @@ impl Context {
             }));
         }
 
-        let mut tensor_inner = self.tensor_pool.get();
+        let mut tensor_inner = self.borrow_mut().tensor_pool.get();
 
         tensor_inner.dtype = dtype;
         tensor_inner.layout.shape = shape.clone();
@@ -143,7 +143,7 @@ impl Context {
 
         // Handle view source if provided
         if let Some(src) = view_src {
-            if !self.contain_tensor_impl(src.tensor_id()) {
+            if !self.contain_tensor(src.tensor_id()) {
                 return Err(Error::msg("view source tensor not found in context")
                     .context("in new_tensor_impl"));
             }
@@ -186,13 +186,13 @@ impl Context {
         }
 
         let tensor = Tensor(Rc::new(RefCell::new(tensor_inner)));
-        self.tensor_tables.insert(tensor.tensor_id(), tensor.clone());
+        self.borrow_mut().tensor_tables.insert(tensor.tensor_id(), tensor.clone());
 
         Ok(tensor)
     }
 
     pub fn new_graph(&mut self, size: usize) -> Result<ComputeGraph> {
-        let mut graph_inner = self.graph_pool.get();
+        let mut graph_inner = self.borrow_mut().graph_pool.get();
         let id = graph_inner.id;
         graph_inner.size = size;
         graph_inner.nodes.reserve(size);
@@ -200,7 +200,7 @@ impl Context {
 
         let graph = ComputeGraph(Rc::new(RefCell::new(graph_inner)));
 
-        self.graph_tables.insert(id, graph.clone());
+        self.borrow_mut().graph_tables.insert(id, graph.clone());
 
         Ok(graph)
     }

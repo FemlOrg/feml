@@ -1,4 +1,5 @@
 use crate::context::Context;
+use crate::context::ContextInner;
 use crate::data_type::{get_type_size, DataType, TensorOpType, TensorType};
 use crate::defs::MAX_SRC;
 use crate::error::{Error, Result};
@@ -78,7 +79,7 @@ pub struct TensorInner {
     pub(crate) view_offset: usize,
     pub(crate) op_type: TensorOpType,
     pub(crate) params: Option<OpParams>,
-    pub(crate) ctx: Weak<RefCell<Context>>,
+    pub(crate) ctx: Weak<RefCell<ContextInner>>,
 }
 
 #[derive(Clone)]
@@ -107,8 +108,8 @@ impl TensorInner {
     fn ctx(&self) -> Result<Context> {
         self.ctx
             .upgrade()
-            .map(|ctx| ctx.borrow().clone())
-            .ok_or_else(|| Error::msg("contexxt has been dropped!"))
+            .map(Context)
+            .ok_or_else(|| Error::msg("context has been dropped!"))
     }
 }
 
@@ -225,8 +226,8 @@ impl Tensor {
         self.borrow()
             .ctx
             .upgrade()
-            .map(|ctx| ctx.borrow().clone())
-            .ok_or_else(|| Error::msg("contexxt has been dropped!"))
+            .map(Context)
+            .ok_or_else(|| Error::msg("context has been dropped!"))
     }
 
     fn mul_impl(&mut self, other: Tensor, inplace: bool) -> Result<Tensor> {
