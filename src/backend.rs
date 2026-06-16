@@ -5,7 +5,9 @@ use crate::error::Result;
 use crate::tensor::Tensor;
 use std::any::Any;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BackendDeviceType {
+    #[default]
     Cpu,
     Gpu,
     ACCEL,
@@ -94,7 +96,7 @@ pub trait Backend {
     ) -> Result<()>;
 
     fn read_async(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize)
-    -> Result<()>;
+        -> Result<()>;
 
     fn copy_async(&self, src: Tensor, dst: Tensor) -> Result<()>;
 

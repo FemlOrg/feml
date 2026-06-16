@@ -15,7 +15,6 @@ use crate::tensor::{Tensor, TensorId, TensorInner};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct ContextConfig {
@@ -213,7 +212,7 @@ impl Context {
     /// @param shape The shape (dimensions) of the tensor.
     /// @return Result containing the new tensor or an error.
     pub fn new_tensor(self: &mut Self, dtype: DataType, shape: &Shape) -> Result<Tensor> {
-        let mut tensor = self.new_tensor_impl(dtype, shape, None)?;
+        let tensor = self.new_tensor_impl(dtype, shape, None)?;
         Ok(tensor)
     }
 

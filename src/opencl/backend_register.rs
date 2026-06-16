@@ -3,14 +3,14 @@ use crate::{
     backend::{BackendDevice, BackendRegister},
     error::{Error, ErrorKind, Result},
 };
+use std::any::Any;
 use std::cell::RefCell;
 use std::sync::Once;
-use std::any::Any;
 
 static INIT: Once = Once::new();
 static mut REG: Option<*const dyn BackendRegister> = None;
 
-pub(crate) struct OpenclBackendRegister {
+pub struct OpenclBackendRegister {
     pub(super) devices: RefCell<Vec<OpenclBackendDevice>>,
 }
 

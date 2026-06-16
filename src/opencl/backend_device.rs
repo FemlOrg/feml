@@ -2,6 +2,7 @@ use super::backend::OpenclBackend;
 use super::backend_context::OpenclBackendContext;
 use super::backend_context::OpenclGpuFamlily;
 use crate::backend::DeviceInfo;
+#[allow(dead_code)]
 use crate::backend::{
     Backend, BackendBuffer, BackendDevice, BackendDeviceCaps, BackendDeviceProps, BackendDeviceType,
 };
@@ -29,7 +30,7 @@ pub struct OpenclBackendDevice {
 }
 
 impl BackendDevice for OpenclBackendDevice {
-    fn info(&self) -> Result<crate::backend::DeviceInfo> {
+    fn info(&self) -> Result<DeviceInfo> {
         todo!()
     }
 
@@ -78,6 +79,7 @@ impl OpenclBackendDevice {
         {
             let mut guard = ctx.borrow_mut();
 
+            println!("{}", self.device_name);
             if self.device_name == "Intel" {
                 guard.gpu_family = OpenclGpuFamlily::Intel;
                 guard.wave_size = 64;

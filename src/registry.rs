@@ -1,6 +1,7 @@
 use crate::backend::{Backend, BackendDevice, BackendRegister};
 use crate::error::{Error, Result};
 
+#[derive(Default)]
 pub struct Registry {
     registers: Vec<Box<dyn BackendRegister>>,
 }
