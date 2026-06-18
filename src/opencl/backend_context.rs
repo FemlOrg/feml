@@ -1,7 +1,8 @@
 use super::backend_device::OpenclBackendDevice;
 use crate::error::{Error, Result};
-use ocl::{core::CommandQueueProperties, Kernel};
+use ocl::{core::create_kernel, core::CommandQueueProperties, Kernel};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -14,6 +15,7 @@ pub enum ClKernelId {
 pub(super) enum OpenclGpuFamlily {
     Intel,
     Qualcomm,
+    Glenfly,
     Unknown,
 }
 
@@ -21,7 +23,7 @@ pub(super) struct OpenclBackendContext {
     pub(super) device: ocl::Device,
     #[allow(dead_code)]
     pub(super) device_name: String,
-    pub(super) context: ocl::Context,
+    pub(super) context: Rc<ocl::Context>,
     pub(super) queue: ocl::Queue,
     pub(super) wave_size: i32,
     #[allow(dead_code)]
@@ -29,14 +31,14 @@ pub(super) struct OpenclBackendContext {
     #[allow(dead_code)]
     pub(super) alignment: usize,
     pub(super) gpu_family: OpenclGpuFamlily,
-    pub(super) kernels: Option<HashMap<ClKernelId, ocl::Kernel>>,
+    pub(super) kernels: Option<HashMap<ClKernelId, ocl::core::Kernel>>,
     pub(super) programs: Option<HashMap<&'static str, ocl::Program>>,
 }
 
 impl OpenclBackendContext {
     pub fn new(device: &OpenclBackendDevice) -> Result<Self> {
         #[allow(unused_mut)]
-        let mut props = CommandQueueProperties::ON_DEVICE_DEFAULT;
+        let mut props = CommandQueueProperties::default();
         #[cfg(feature = "opencl-profiling")]
         {
             props.profiling();
@@ -46,7 +48,7 @@ impl OpenclBackendContext {
             device: device.device.clone(),
             device_name: device.device_name.clone(),
             context: device.context.clone(),
-            queue: ocl::Queue::new(&device.context, device.device, Some(props))?,
+            queue: ocl::Queue::new(&*device.context, device.device, Some(props))?,
             wave_size: 0,
             max_alloc_size: 0,
             alignment: 0,
@@ -61,7 +63,7 @@ impl OpenclBackendContext {
             return Ok(());
         }
 
-        let mut kernels: HashMap<ClKernelId, ocl::Kernel> = HashMap::new();
+        let mut kernels: HashMap<ClKernelId, ocl::core::Kernel> = HashMap::new();
         let mut programs: HashMap<&'static str, ocl::Program> = HashMap::new();
 
         // load mul kernel
@@ -69,14 +71,16 @@ impl OpenclBackendContext {
             let program = ocl::Program::builder()
                 .src(include_str!("kernels/mul.cl"))
                 .devices(self.device)
-                .build(&self.context)?;
+                .build(&*self.context)
+                .expect("opencl: build program mul.cl failed!");
             programs.insert("mul", program.clone());
 
-            let kernel_mul = ocl::Kernel::builder().program(&program).name("kernel_mul").build()?;
+            let kernel_mul = create_kernel(&program, "kernel_mul")
+                .expect("opencl: build kernel kernel_mul failed!");
             kernels.insert(ClKernelId::Mul, kernel_mul);
 
-            let kernel_mul_row =
-                ocl::Kernel::builder().program(&program).name("kernel_mul_row").build()?;
+            let kernel_mul_row = create_kernel(&program, "kernel_mul_row")
+                .expect("opencl: build kernel kernel_mul_row failed!");
             kernels.insert(ClKernelId::MulRow, kernel_mul_row);
         }
 
@@ -88,7 +92,7 @@ impl OpenclBackendContext {
 
     pub(super) fn with_kernel<F>(&mut self, kernel_id: ClKernelId, f: F) -> Result<()>
     where
-        F: FnOnce(&mut Kernel) -> Result<()>,
+        F: FnOnce(&mut ocl::core::Kernel) -> Result<()>,
     {
         let kernel = self.kernels.as_mut().unwrap().get_mut(&kernel_id).ok_or_else(|| {
             Error::msg(format!("Kernel {:?} not found in OpenCL backend context", kernel_id))

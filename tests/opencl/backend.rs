@@ -1,41 +1,7 @@
 #[cfg(feature = "opencl")]
 mod opencl_backend {
-    // use feml::backend::{Backend, BackendBuffer, BackendBufferUsage};
-    // use feml::context::{Context, ContextBuilder};
-    // use feml::data_type::DataType;
-    // use feml::opencl::backend::OpenclBackend;
-    // use feml::opencl::backend_register::OpenclBackendRegister;
+    use feml::backend::BackendBufferUsage;
     use feml::registry::Registry;
-    // use feml::shape;
-    // use feml::shape::Shape;
-    // use feml::tensor::Tensor;
-
-    /// Helper: create a context with OpenCL backend auto-initialized
-    // fn context_with_opencl() -> Option<Context> {
-    //     let reg = OpenclBackendRegister::init();
-    //     if reg.device_count() == 0 {
-    //         eprintln!("[SKIP] No OpenCL devices found");
-    //         return None;
-    //     }
-    //     let mut ctx = Context::builder().tensor_pool_capacity(16).build();
-    //     Some(ctx)
-    // }
-
-    // /// Helper: get backend from context (or create one)
-    // fn opencl_backend() -> Option<Box<dyn Backend>> {
-    //     let result = OpenclBackend::init();
-    //     match result {
-    //         Ok(backend) => {
-    //             println!("OpenCL backend: {}", backend.name());
-    //             Some(backend)
-    //         }
-    //         Err(e) => {
-    //             eprintln!("[SKIP] Cannot init OpenCL backend: {}", e);
-    //             None
-    //         }
-    //     }
-    // }
-
     // ────────────────────────────────────────────────────────
     // Test 1: Backend register
     // ────────────────────────────────────────────────────────
@@ -67,8 +33,6 @@ mod opencl_backend {
         let ocl_reg = reg.find("OpenCL");
         assert!(ocl_reg.is_some(), "find opencl register should succeed");
         assert!(ocl_reg.unwrap().init_devices().is_ok(), "init device should succeed");
-        // let device = ocl_reg.unwrap().device(0);
-        // assert!(device.is_ok(), "registry device should succeed");
     }
 
     #[test]
@@ -78,8 +42,63 @@ mod opencl_backend {
         let reg = registry.ok().unwrap();
         let ocl_reg = reg.find("OpenCL");
         assert!(ocl_reg.is_some(), "find opencl register should succeed");
+        assert!(ocl_reg.unwrap().init_devices().is_ok(), "init device should succeed");
         let device = ocl_reg.unwrap().device(0);
-        assert!(device.is_ok(), "registry device should succeed");
+        assert!(device.is_ok(), "get device should succeed");
+    }
+
+    #[test]
+    fn registry_ocl_backend() {
+        let registry = Registry::discover();
+        assert!(registry.is_ok(), "registry discover should succeed");
+        let reg = registry.ok().unwrap();
+        let ocl_reg = reg.find("OpenCL");
+        assert!(ocl_reg.is_some(), "find opencl register should succeed");
+        assert!(ocl_reg.unwrap().init_devices().is_ok(), "init device should succeed");
+        let device = ocl_reg.unwrap().device(0);
+        assert!(device.is_ok(), "get device should succeed");
+        let backend = device.unwrap().init_backend();
+        assert!(backend.is_ok(), "init backend should succeed");
+    }
+
+    #[test]
+    fn registry_ocl_init_all() {
+        let registry = Registry::discover();
+        assert!(registry.is_ok(), "registry discover should succeed");
+        assert!(registry.unwrap().init_all().is_ok(), "registry init_all should succeed");
+    }
+
+    #[test]
+    fn registry_ocl_open_device() {
+        let registry = Registry::discover();
+        assert!(registry.is_ok(), "registry discover should succeed");
+        assert!(
+            registry.unwrap().open_device("OpenCL", 0).is_ok(),
+            "open opencl backend should succeed"
+        );
+    }
+
+    #[test]
+    fn registry_ocl_open_backend() {
+        let registry = Registry::discover();
+        assert!(registry.is_ok(), "registry discover should succeed");
+        assert!(registry.as_ref().unwrap().init_all().is_ok(), "registry init_all should succeed");
+        assert!(
+            registry.unwrap().open_backend("OpenCL", 0).is_ok(),
+            "open opencl backend should succeed"
+        );
+    }
+
+    #[test]
+    fn create_backend_buffer() {
+        let registry = Registry::discover();
+        assert!(registry.is_ok(), "registry discover should succeed");
+        assert!(registry.as_ref().unwrap().init_all().is_ok(), "registry init_all should succeed");
+        let backend = registry.as_ref().unwrap().open_backend("OpenCL", 0).unwrap();
+        let backend_buffer = backend.create_buffer(1024, BackendBufferUsage::Any);
+        assert!(backend_buffer.is_ok(), "create backend buffer should succeed");
+        let usage = backend_buffer.unwrap().usage().unwrap();
+        assert_eq!(usage, BackendBufferUsage::Any, "backend_buffer usage should be Any, {}");
     }
 
     // #[test]

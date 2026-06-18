@@ -356,6 +356,13 @@ impl From<ocl::Error> for Error {
     }
 }
 
+#[cfg(feature = "opencl")]
+impl From<ocl::OclCoreError> for Error {
+    fn from(e: ocl::OclCoreError) -> Self {
+        Error::msg(format!("OpenCL core error: {}", e))
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
