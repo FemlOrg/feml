@@ -126,7 +126,7 @@ impl Context {
         }
 
         // Validate data type: check if supported for tensor creation
-        if !matches!(dtype, DataType::F32 | DataType::I32) {
+        if !matches!(dtype, DataType::F32 | DataType::I32 | DataType::U8) {
             return Err(Error::new(ErrorKind::UnsupportedDataTypeForOp {
                 dtype,
                 op: "tensor creation",

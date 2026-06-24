@@ -5,6 +5,7 @@ use crate::{
 };
 use std::any::Any;
 use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
@@ -12,6 +13,7 @@ static mut REG: Option<*const dyn BackendRegister> = None;
 
 pub struct OpenclBackendRegister {
     pub(super) devices: RefCell<Vec<OpenclBackendDevice>>,
+    pub(super) contexts: RefCell<Vec<Rc<ocl::Context>>>,
 }
 
 impl BackendRegister for OpenclBackendRegister {
@@ -50,8 +52,11 @@ impl BackendRegister for OpenclBackendRegister {
                 continue;
             }
 
-            let context =
-                ocl::Context::builder().platform(platform.clone()).devices(&devices).build()?;
+            let context = Rc::new(
+                ocl::Context::builder().platform(platform.clone()).devices(&devices).build()?,
+            );
+
+            self.contexts.borrow_mut().push(Rc::clone(&context));
 
             for device in devices {
                 let ocl_device = OpenclBackendDevice {
@@ -73,12 +78,23 @@ impl BackendRegister for OpenclBackendRegister {
 
     fn init_devices(&self) -> Result<()> {
         let mut devices = self.devices.borrow_mut();
-        let drained: Vec<OpenclBackendDevice> = devices.drain(..).collect();
-        let valid: Vec<OpenclBackendDevice> = drained
-            .into_iter()
-            .filter_map(|mut d| if d.init().is_ok() { Some(d) } else { None })
-            .collect();
-        *devices = valid;
+
+        let mut ok: Vec<bool> = Vec::with_capacity(devices.len());
+        for d in devices.iter_mut() {
+            ok.push(d.init().is_ok());
+        }
+
+        let mut i = 0;
+        devices.retain(|_| {
+            let keep = ok[i];
+            i += 1;
+            keep
+        });
+
+        if devices.is_empty() {
+            return Err(Error::msg("no devices survived initialization"));
+        }
+
         Ok(())
     }
 }
@@ -87,7 +103,8 @@ impl OpenclBackendRegister {
     pub fn init() -> &'static dyn BackendRegister {
         unsafe {
             INIT.call_once(|| {
-                let reg = Self { devices: RefCell::new(Vec::new()) };
+                let reg =
+                    Self { devices: RefCell::new(Vec::new()), contexts: RefCell::new(Vec::new()) };
                 REG = Some(Box::into_raw(Box::new(reg)));
             });
             &*REG.unwrap()
@@ -105,6 +122,6 @@ impl OpenclBackendRegister {
     }
 
     pub fn new() -> Self {
-        Self { devices: RefCell::new(Vec::new()) }
+        Self { devices: RefCell::new(Vec::new()), contexts: RefCell::new(Vec::new()) }
     }
 }

@@ -6,7 +6,7 @@ pub mod cpu;
 #[cfg(feature = "cuda")]
 pub mod cuda;
 pub mod data_type;
-mod defs;
+pub mod defs;
 pub mod error;
 pub mod layout;
 mod object_pool;
