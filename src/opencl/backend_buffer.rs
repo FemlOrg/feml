@@ -1,3 +1,5 @@
+use ocl::ffi::libc::BUFSIZ;
+
 use super::backend_context::OpenclBackendContext;
 use crate::backend::{BackendBuffer, BackendBufferUsage};
 use crate::error::{Error, Result};
@@ -72,6 +74,8 @@ impl BackendBuffer for OpenclBackendBuffer {
         let cl_queue = &ctx.queue;
 
         let storage = tensor.storage()?;
+        let buffer = storage.as_opencl();
+        let real_offset = storage.offset() + offset;
 
         if !matches!(*storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
@@ -80,9 +84,9 @@ impl BackendBuffer for OpenclBackendBuffer {
         unsafe {
             ocl::core::enqueue_write_buffer(
                 cl_queue,
-                &self.buffer,
+                &buffer.unwrap().buffer,
                 true,
-                offset,
+                real_offset,
                 data,
                 None::<ocl::core::Event>,
                 None::<()>,
@@ -97,6 +101,8 @@ impl BackendBuffer for OpenclBackendBuffer {
         let cl_queue = &ctx.queue;
 
         let storage = tensor.storage()?;
+        let buffer = storage.as_opencl();
+        let real_offset = storage.offset() + tensor.view_offset() + offset;
 
         if !matches!(*storage, TensorStorage::Opencl { .. }) {
             return Err(Error::msg("storage is not OpenCL type"));
@@ -105,9 +111,9 @@ impl BackendBuffer for OpenclBackendBuffer {
         unsafe {
             ocl::core::enqueue_read_buffer(
                 cl_queue,
-                &self.buffer,
+                &buffer.unwrap().buffer,
                 true,
-                offset,
+                real_offset,
                 data,
                 None::<ocl::core::Event>,
                 None::<()>,
