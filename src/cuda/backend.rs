@@ -160,12 +160,12 @@ impl CudaBackend {
             .downcast_ref::<super::backend_device::CudaBackendDevice>()
             .ok_or_else(|| Error::msg("device is not a CUDA device"))?;
 
-        Ok(Box::new(Self {
-            backend_ctx: cuda_device
-                .backend_ctx
-                .clone()
-                .ok_or_else(|| Error::msg("backend_ctx is none"))?,
-        }))
+        let backend_ctx =
+            cuda_device.backend_ctx.clone().ok_or_else(|| Error::msg("backend_ctx is none"))?;
+
+        backend_ctx.borrow_mut().set_device(device_id as u32)?;
+
+        Ok(Box::new(Self { backend_ctx }))
     }
 
     fn compute_forward(&self, ctx: &Context, tensor: &Tensor) -> Result<()> {

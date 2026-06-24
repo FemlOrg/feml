@@ -15,5 +15,5 @@ pub mod opencl;
 mod ops;
 pub mod registry;
 pub mod shape;
-mod storage;
+pub mod storage;
 pub mod tensor;

@@ -9,7 +9,7 @@ use crate::tensor::Tensor;
 use cuda_core::memory::{memcpy_dtoh_async, memcpy_htod_sync, memset_d8_async};
 use cuda_core::DeviceBuffer;
 
-pub(crate) struct CudaBackendBuffer {
+pub struct CudaBackendBuffer {
     pub(super) backend_ctx: Option<Rc<RefCell<CudaBackendContext>>>,
     pub(super) buffer: DeviceBuffer<u8>,
     usage: BackendBufferUsage,

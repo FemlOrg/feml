@@ -33,6 +33,7 @@ pub struct CudaBackendDevice {
 impl BackendDevice for CudaBackendDevice {
     fn init_backend(&self) -> Result<Box<dyn Backend>> {
         let ctx = self.backend_ctx.clone().ok_or_else(|| Error::msg("backend_ctx is none"))?;
+        ctx.borrow_mut().set_device(self.info.device_id as u32)?;
         Ok(Box::new(CudaBackend { backend_ctx: ctx }))
     }
 
