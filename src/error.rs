@@ -360,6 +360,10 @@ impl From<ocl::Error> for Error {
 impl From<ocl::OclCoreError> for Error {
     fn from(e: ocl::OclCoreError) -> Self {
         Error::msg(format!("OpenCL core error: {}", e))
+#[cfg(feature = "cuda")]
+impl From<cuda_core::DriverError> for Error {
+    fn from(e: cuda_core::DriverError) -> Self {
+        Error::msg(format!("CUDA driver error: {}", e))
     }
 }
 

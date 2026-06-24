@@ -4,12 +4,10 @@ use std::rc::Rc;
 use super::backend_context::CudaBackendContext;
 use crate::backend::BackendBuffer;
 use crate::backend::BackendBufferUsage;
-use crate::data_type::is_quantized;
 use crate::error::{Error, Result};
-use crate::storage::TensorStorage;
 use crate::tensor::Tensor;
-use cuda_core::DeviceBuffer;
 use cuda_core::memory::{memcpy_dtoh_async, memcpy_htod_sync, memset_d8_async};
+use cuda_core::DeviceBuffer;
 
 pub(crate) struct CudaBackendBuffer {
     pub(super) backend_ctx: Option<Rc<RefCell<CudaBackendContext>>>,
@@ -27,6 +25,10 @@ impl CudaBackendBuffer {
     ) -> Self {
         Self { backend_ctx, buffer, usage, size }
     }
+
+    fn ctx(&self) -> Result<&Rc<RefCell<CudaBackendContext>>> {
+        self.backend_ctx.as_ref().ok_or_else(|| Error::msg("backend_ctx is none"))
+    }
 }
 
 impl BackendBuffer for CudaBackendBuffer {
@@ -34,138 +36,83 @@ impl BackendBuffer for CudaBackendBuffer {
         todo!()
     }
 
-    fn init_tensor(&self, mut tensor: Tensor, offset: usize) -> Result<()> {
-        if !is_quantized(tensor.dtype())
-            || tensor.borrow().view_tensor.is_some()
-            || self.usage == BackendBufferUsage::Compute
-        {
-            return Ok(());
-        }
-
-        let original_size = tensor.nbytes();
-        let allocator = self
-            .backend_allocator
-            .as_ref()
-            .ok_or_else(|| Error::msg("backend_allocator is none"))?;
-        let padded_size = allocator.alloc_size(tensor)?;
-
-        if padded_size <= original_size {
-            return Ok(());
-        }
-        let storage = TensorStorage::new_cuda(Rc::new(*self), offset, padded_size);
-        tensor.set_extra_storage(Some(storage));
-
-        let stream = self.backend_ctx.unwrap().borrow().ensure_current_stream()?;
-        let ptr = self.buffer.cu_deviceptr() + offset as u64;
-
-        unsafe {
-            memset_d8_async(ptr, 0, padded_size - original_size, stream.cu_stream()).map_err(
-                |e| {
-                    Error::msg(format!("memset_d8_async failed with error code {}", e))
-                        .context("CudaBackendBuffer::init_tensor")
-                },
-            )?;
-        }
-
-        Ok(())
+    fn init_tensor(&self, _tensor: Tensor, _offset: usize) -> Result<()> {
+        todo!()
     }
 
     fn fill(&self, tensor: Tensor, value: u8, offset: usize, size: usize) -> Result<()> {
-        self.backend_ctx.unwrap().set_device(self.backend_ctx.unwrap().current_device_id.unwrap());
-        let storage = tensor.get_extra_storage()?;
-        let offset = storage.offset();
+        let ctx = self.ctx()?;
+        let mut ctx = ctx.borrow_mut();
+        ctx.ensure_current_stream()?;
+        let device_id = ctx.get_device_id()?;
+        ctx.set_device(device_id)?;
+        let stream =
+            ctx.current_stream.clone().ok_or_else(|| Error::msg("current stream is none"))?;
+
+        drop(ctx);
+
+        let storage = &*tensor.storage()?;
+        let _offset = offset + storage.offset();
+
         unsafe {
             let ptr = self.buffer.cu_deviceptr() as usize;
-            memset_d8_async(
-                (ptr + offset) as u64,
-                value,
-                size,
-                self.backend_ctx.unwrap().current_stream.unwrap().cu_stream(),
-            )
-            .map_err(|e| {
-                Error::msg(format!(
-                    "cuda_core::memory::memset_d8_async failed with error code {}",
-                    e
-                ))
-                .context("CudaBackendBuffer::memset_tensor")
-            })?;
+            memset_d8_async((ptr + _offset) as u64, value, size, stream.cu_stream())
+                .map_err(|e| Error::msg(format!("memset_d8_async failed with error code {}", e)))?;
 
-            self.backend_ctx.unwrap().current_stream.as_ref().unwrap().synchronize().map_err(
-                |e| {
-                    Error::msg(format!("cuStreamSynchronize failed with error code {}", e))
-                        .context("CudaBackendBuffer::memset_tensor")
-                },
-            )?;
+            stream.synchronize().map_err(|e| {
+                Error::msg(format!("cuStreamSynchronize failed with error code {}", e))
+            })?;
         }
 
         Ok(())
     }
 
-    fn write(
-        &self,
-        tensor: crate::tensor::Tensor,
-        data: &mut [u8],
-        offset: usize,
-        size: usize,
-    ) -> crate::error::Result<()> {
-        self.backend_ctx.unwrap().set_device(self.backend_ctx.unwrap().current_device_id.unwrap());
-        let storage = tensor.get_extra_storage()?;
-        let offset = storage.offset();
+    fn write(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize) -> Result<()> {
+        let storage = &*tensor.storage()?;
+        let _offset = offset + storage.offset();
 
         unsafe {
             let ptr = self.buffer.cu_deviceptr() as usize;
-            memcpy_htod_sync((ptr + offset) as u64, data.as_ptr() as *const std::ffi::c_void, size)
+            memcpy_htod_sync(
+                (ptr + _offset) as u64,
+                data.as_ptr() as *const std::ffi::c_void,
+                size,
+            )
+            .map_err(|e| Error::msg(format!("memcpy_htod_sync failed with error code {}", e)))?;
+        }
+
+        Ok(())
+    }
+
+    fn read(&self, tensor: Tensor, data: &mut [u8], offset: usize, size: usize) -> Result<()> {
+        let ctx = self.ctx()?;
+        let stream = {
+            let mut ctx = ctx.borrow_mut();
+            ctx.ensure_current_stream()?;
+            ctx.current_stream.clone().ok_or_else(|| Error::msg("current stream is none"))?
+        };
+
+        let storage = &*tensor.storage()?;
+        let _offset = offset + storage.offset();
+
+        unsafe {
+            let ptr = self.buffer.cu_deviceptr() as usize;
+            memcpy_dtoh_async(data.as_mut_ptr(), (ptr + _offset) as u64, size, stream.cu_stream())
                 .map_err(|e| {
-                    Error::msg(format!("memcpy_htod_async failed with error code {}", e))
-                        .context("CudaBackendBuffer::set_tensor")
+                    Error::msg(format!("memcpy_dtoh_async failed with error code {}", e))
                 })?;
-        }
 
-        Ok(())
-    }
-
-    fn read(
-        &self,
-        tensor: crate::tensor::Tensor,
-        data: &mut [u8],
-        offset: usize,
-        size: usize,
-    ) -> crate::error::Result<()> {
-        self.backend_ctx.unwrap().set_device(self.backend_ctx.unwrap().current_device_id.unwrap());
-        let storage = tensor.get_extra_storage()?;
-        let offset = storage.offset();
-
-        unsafe {
-            let ptr = self.buffer.cu_deviceptr() as usize;
-            memcpy_dtoh_async(
-                data.as_mut_ptr(),
-                (ptr + offset) as u64,
-                size,
-                self.backend_ctx.unwrap().current_stream.unwrap().cu_stream(),
-            )
-            .map_err(|e| {
-                Error::msg(format!("memcpy_dtoh_async failed with error code {}", e))
-                    .context("CudaBackendBuffer::get_tensor")
+            stream.synchronize().map_err(|e| {
+                Error::msg(format!("cuStreamSynchronize failed with error code {}", e))
             })?;
-
-            self.backend_ctx.unwrap().current_stream.as_ref().unwrap().synchronize().map_err(
-                |e| {
-                    Error::msg(format!("cuStreamSynchronize failed with error code {}", e))
-                        .context("CudaBackendBuffer::memset_tensor")
-                },
-            )?;
         }
 
         Ok(())
     }
 
-    fn copy(
-        &self,
-        src: crate::tensor::Tensor,
-        dst: crate::tensor::Tensor,
-    ) -> crate::error::Result<()> {
-        let src_storage = src.get_extra_storage()?;
-        let dst_storage = dst.get_extra_storage()?;
+    fn copy(&self, src: Tensor, dst: Tensor) -> Result<()> {
+        let src_storage = &*src.storage()?;
+        let dst_storage = &*dst.storage()?;
 
         let src_buffer =
             src_storage.as_cuda().ok_or_else(|| Error::msg("src tensor storage is not CUDA"))?;
@@ -188,7 +135,7 @@ impl BackendBuffer for CudaBackendBuffer {
         let dst_ptr = dst_buffer.buffer.cu_deviceptr() + dst_offset as u64;
         let src_bytes = src.nbytes();
 
-        let stream = src_backend_ctx.borrow().ensure_current_stream()?;
+        let stream = src_backend_ctx.borrow_mut().ensure_current_stream()?;
         let same_device = src_backend_ctx.borrow().current_device_id
             == dst_backend_ctx.borrow().current_device_id;
 
@@ -226,7 +173,6 @@ impl BackendBuffer for CudaBackendBuffer {
 
             stream.synchronize().map_err(|e| {
                 Error::msg(format!("cuStreamSynchronize failed with error code {}", e))
-                    .context("CudaBackendBuffer::memset_tensor")
             })?;
         }
 
