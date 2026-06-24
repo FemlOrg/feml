@@ -53,7 +53,7 @@ pub struct BackendCapabilities {
     pub events: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendBufferUsage {
     Any,
     Weights,

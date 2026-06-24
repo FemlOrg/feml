@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
+static CUDA_INIT: Once = Once::new();
 static mut REG: Option<*const dyn BackendRegister> = None;
 
 pub(crate) struct CudaBackendRegister {
@@ -32,10 +33,13 @@ impl BackendRegister for CudaBackendRegister {
     }
 
     fn probe_devices(&self) -> Result<()> {
+        CUDA_INIT.call_once(|| unsafe { cuda_core::init(0).expect("CUDA driver init failed") });
+
         let mut device_count: i32 = 0;
-        unsafe {
-            cuda_bindings::cuDeviceGetCount(&mut device_count as *mut i32);
-        };
+        let result = unsafe { cuda_bindings::cuDeviceGetCount(&mut device_count as *mut i32) };
+        if result != 0 {
+            return Err(Error::msg(format!("cuDeviceGetCount failed with code: {}", result)));
+        }
         if device_count > CUDA_MAX_DEVICES as i32 {
             return Err(Error::msg("exceed max devices!"));
         }

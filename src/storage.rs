@@ -8,7 +8,7 @@ use crate::opencl::backend_buffer::OpenclBackendBuffer;
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub(crate) enum TensorStorage {
+pub enum TensorStorage {
     #[cfg(feature = "cpu")]
     Cpu { buffer: Rc<CpuBackendBuffer>, offset: usize, actual_size: usize },
     #[cfg(feature = "opencl")]
@@ -21,38 +21,26 @@ pub(crate) enum TensorStorage {
 
 impl TensorStorage {
     #[cfg(feature = "cpu")]
-    pub(crate) fn new_cpu(buffer: Rc<CpuBackendBuffer>, offset: usize, actual_size: usize) -> Self {
+    pub fn new_cpu(buffer: Rc<CpuBackendBuffer>, offset: usize, actual_size: usize) -> Self {
         Self::Cpu { buffer, offset, actual_size }
     }
 
     #[cfg(feature = "cuda")]
-    pub(crate) fn new_cuda(
-        buffer: Rc<CudaBackendBuffer>,
-        offset: usize,
-        actual_size: usize,
-    ) -> Self {
+    pub fn new_cuda(buffer: Rc<CudaBackendBuffer>, offset: usize, actual_size: usize) -> Self {
         Self::Cuda { buffer, offset, actual_size }
     }
 
     #[cfg(feature = "opencl")]
-    pub(crate) fn new_opencl(
-        buffer: Rc<OpenclBackendBuffer>,
-        offset: usize,
-        actual_size: usize,
-    ) -> Self {
+    pub fn new_opencl(buffer: Rc<OpenclBackendBuffer>, offset: usize, actual_size: usize) -> Self {
         Self::Opencl { buffer, offset, actual_size }
     }
 
     #[allow(dead_code)]
-    pub(crate) fn new_other(
-        buffer: Rc<dyn BackendBuffer>,
-        offset: usize,
-        actual_size: usize,
-    ) -> Self {
+    pub fn new_other(buffer: Rc<dyn BackendBuffer>, offset: usize, actual_size: usize) -> Self {
         Self::Other { buffer, offset, actual_size }
     }
 
-    pub(crate) fn offset(&self) -> usize {
+    pub fn offset(&self) -> usize {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu { offset, .. } => *offset,
@@ -65,7 +53,7 @@ impl TensorStorage {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn size(&self) -> usize {
+    pub fn size(&self) -> usize {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu { actual_size, .. } => *actual_size,
@@ -78,7 +66,7 @@ impl TensorStorage {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn buffer(&self) -> &dyn BackendBuffer {
+    pub fn buffer(&self) -> &dyn BackendBuffer {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu { buffer, .. } => buffer.as_ref(),
@@ -91,7 +79,7 @@ impl TensorStorage {
     }
 
     #[cfg(feature = "cpu")]
-    pub(crate) fn as_cpu(&self) -> Option<&CpuBackendBuffer> {
+    pub fn as_cpu(&self) -> Option<&CpuBackendBuffer> {
         match self {
             Self::Cpu { buffer, .. } => Some(buffer.as_ref()),
             _ => None,
@@ -99,7 +87,7 @@ impl TensorStorage {
     }
 
     #[cfg(feature = "opencl")]
-    pub(crate) fn as_opencl(&self) -> Option<&OpenclBackendBuffer> {
+    pub fn as_opencl(&self) -> Option<&OpenclBackendBuffer> {
         match self {
             Self::Opencl { buffer, .. } => Some(buffer.as_ref()),
             _ => None,
@@ -107,7 +95,7 @@ impl TensorStorage {
     }
 
     #[cfg(feature = "cuda")]
-    pub(crate) fn as_cuda(&self) -> Option<&CudaBackendBuffer> {
+    pub fn as_cuda(&self) -> Option<&CudaBackendBuffer> {
         match self {
             Self::Cuda { buffer, .. } => Some(buffer.as_ref()),
             _ => None,
