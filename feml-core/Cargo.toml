@@ -1,0 +1,9 @@
+[package]
+name = "feml-core"
+description = "Feml core: tensor types, layouts, ops and backend traits for LLM inference"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
