@@ -90,7 +90,7 @@ impl GraphBuilder {
         let src_meta = self.tensor(src).ok_or_else(|| Error::msg("view: unknown source"))?;
         let nbytes = src_meta.nbytes();
         let mut meta = TensorMeta::new("view", src_meta.dtype, shape)?;
-        if offset % ELEMENT_ALIGNMENT != 0 {
+        if !offset.is_multiple_of(ELEMENT_ALIGNMENT) {
             return Err(Error::shape(format!(
                 "view: offset {offset} is not {ELEMENT_ALIGNMENT}-byte aligned"
             )));

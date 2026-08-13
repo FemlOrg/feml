@@ -80,9 +80,9 @@ let v = g.view(w, 0, shape![2048, 11008])?;              // zero-copy view (offs
 | `scale(x, alpha)` | same shape | — |
 
 **Note**: M2 shipped only the interfaces above (shape inference + validation).
-Kernel status: `mul` / `add` / `mul_mat` are implemented on CPU/OpenCL; graphs
-using the other ops fail at `compile` (fail-fast "backend does not support op").
-Add kernels per `docs/backend-guide.md`.
+Kernel status: `mul` / `add` / `mul_mat` are implemented on CPU/CUDA/OpenCL;
+graphs using the other ops fail at `compile` (fail-fast "backend does not
+support op"). Add kernels per `docs/backend-guide.md`.
 
 ## 5. Compile behavior (fail-fast)
 
@@ -118,6 +118,7 @@ assert!(err.to_string().contains("does not support op softmax"));
 ```rust
 let mut reg = Registry::new();
 reg.register(Box::new(CpuRegistrar::probe()?));
+reg.register(Box::new(CudaRegistrar::probe()?));
 reg.register(Box::new(OpenclRegistrar::probe()?));
 let backend = reg.open_best()?;   // highest score (GPU > CPU)
 ```
@@ -152,5 +153,6 @@ Err(Error::shape("mul_mat: inner dim mismatch: 16 vs 32"))   // shape errors
 ```shell
 cargo test -p feml-core     # unit tests (dtype/layout/planner/graph/registry)
 cargo test -p feml-cpu      # CPU integration (mul/mul_mat numerics, zero-alloc, plan release)
+cargo test -p feml-cuda     # CUDA integration (skipped automatically without a device)
 cargo test -p feml-opencl   # OpenCL integration (skipped automatically without a device)
 ```

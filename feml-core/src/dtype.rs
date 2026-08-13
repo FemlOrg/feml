@@ -103,7 +103,7 @@ impl DType {
     ///
     /// `n_elements` must be a multiple of `block_size`.
     pub fn row_size(self, n_elements: usize) -> Result<usize> {
-        if n_elements % self.block_size() != 0 {
+        if !n_elements.is_multiple_of(self.block_size()) {
             return Err(Error::msg(format!(
                 "{}: row size {} is not aligned to block size {}",
                 self.name(),

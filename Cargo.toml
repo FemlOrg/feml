@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["feml-core", "feml-cpu", "feml-opencl"]
+members = ["feml-core", "feml-cpu", "feml-opencl", "feml-cuda"]
 exclude = ["legacy"]
 
 [workspace.package]
@@ -12,3 +12,4 @@ rust-version = "1.88"
 [workspace.dependencies]
 feml-core = { path = "feml-core" }
 ocl = { version = "0.19" }
+cudarc = { version = "0.19.9", features = ["cuda-13000"] }

@@ -84,11 +84,11 @@ impl Talloc {
         self.free.sort_unstable();
         let mut merged: Vec<(usize, usize)> = Vec::with_capacity(self.free.len());
         for (off, sz) in self.free.drain(..) {
-            if let Some(last) = merged.last_mut() {
-                if last.0 + last.1 == off {
-                    last.1 += sz;
-                    continue;
-                }
+            if let Some(last) = merged.last_mut()
+                && last.0 + last.1 == off
+            {
+                last.1 += sz;
+                continue;
             }
             merged.push((off, sz));
         }

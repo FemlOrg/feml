@@ -11,7 +11,7 @@ propagation, package distribution).
 
 - **Three-phase API**: `GraphBuilder → compile → backend.graph_compute(plan)`, with zero runtime memory allocation (the CPU path is locked by a counting-allocator test)
 - **Zero-allocation execution**: `MemoryPlanner` (a port of ggml-alloc) performs liveness analysis, inplace reuse and view sharing at compile time, producing an immutable `GraphPlan`
-- **Multiple backends**: `feml-cpu` / `feml-opencl` behind a unified `Backend` trait (`Send + Sync`, zero panics, out-of-bounds is an error)
+- **Multiple backends**: `feml-cpu` / `feml-cuda` / `feml-opencl` behind a unified `Backend` trait (`Send + Sync`, zero panics, out-of-bounds is an error)
 - **ggml-compatible data layout**: `[K, M]` contiguous, quantized type table (Q4_0 ~ Q8_K) mapped 1:1 to GGML
 - **Inference op interfaces**: mul / add / mul_mat / rms_norm / silu / softmax / rope / get_rows / concat / copy / mul_mat_id / diag_mask_inf / scale
 
@@ -21,6 +21,7 @@ propagation, package distribution).
 feml/                    workspace
 ├── feml-core/           tensor types, graph, plan, memory planner, backend traits (zero dependencies)
 ├── feml-cpu/            CPU backend (mul/add/mul_mat kernels)
+├── feml-cuda/           CUDA backend (cudarc; mul/add/mul_mat kernels, NVRTC at runtime)
 ├── feml-opencl/         OpenCL backend (strided mul + mul_mat kernels)
 ├── legacy/              v0 code (kept in git history, not a workspace member)
 └── docs/                DESIGN.md / backend-guide.md / api-guide.md
@@ -50,7 +51,7 @@ See [docs/api-guide.md](docs/api-guide.md) for detailed usage.
 
 ```shell
 cargo build --workspace
-cargo test --workspace          # 75 tests (including numeric verification on a real OpenCL device)
+cargo test --workspace          # 83 tests (numeric verification on a real CUDA GPU; OpenCL/CUDA tests skip without a device)
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 ```

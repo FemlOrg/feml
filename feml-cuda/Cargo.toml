@@ -1,0 +1,14 @@
+[package]
+name = "feml-cuda"
+description = "Feml CUDA backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+feml-core.workspace = true
+cudarc.workspace = true
+
+[dev-dependencies]
+feml-cpu = { path = "../feml-cpu" }

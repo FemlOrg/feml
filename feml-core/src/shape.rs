@@ -76,7 +76,6 @@ macro_rules! shape {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shape;
 
     #[test]
     fn new_and_accessors() {

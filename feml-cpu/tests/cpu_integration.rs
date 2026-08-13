@@ -3,7 +3,7 @@
 use feml_core::backend::{Backend, BackendRegistrar, BufferUsage};
 use feml_core::graph::GraphBuilder;
 use feml_core::op::Op;
-use feml_core::{shape, DType, GraphPlan, Shape, TensorId};
+use feml_core::{DType, GraphPlan, Shape, TensorId, shape};
 use feml_cpu::CpuBackend;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
