@@ -56,12 +56,3 @@ cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-## Design docs
-
-- [docs/DESIGN.md](docs/DESIGN.md) — overall architecture and roadmap (M0–M5)
-- [docs/backend-guide.md](docs/backend-guide.md) — third-party backend integration guide
-- [docs/api-guide.md](docs/api-guide.md) — API usage guide
-
-## License
-
-MIT
