@@ -1,43 +1,58 @@
 # Feml
 
-Feml — High-performance Rust rewrite of GGML, supporting CPU and GPU backends with zero runtime memory allocation.
+Feml — a high-performance Rust operator library for LLM inference (a Rust rewrite of GGML).
 
-## Backend Status
+It inherits ggml's core strengths (static compute graphs, graph-aware memory
+planning, multiple backends, quantized types) while fixing its inherent
+weaknesses with Rust's type safety and ecosystem (memory safety, error
+propagation, package distribution).
 
-| Backend | Feature | Status |
-| --- | --- | --- |
-| CPU | `cpu` (default) | Registry discovery, backend opening, buffer allocation, tensor binding, fill/read/write/copy, and F32 `TensorOpMul` graph compute. |
-| OpenCL | `opencl` | Optional backend with device discovery, buffer allocation, and kernel-backed `TensorOpMul`. Some async and device-info paths are still incomplete. |
-| CUDA | `cuda` | Optional backend with device discovery, buffer allocation, and kernel-backed `TensorOpMul`. Some buffer initialization and async paths are still incomplete. |
+## Core features
 
-## Develop
+- **Three-phase API**: `GraphBuilder → compile → backend.graph_compute(plan)`, with zero runtime memory allocation (the CPU path is locked by a counting-allocator test)
+- **Zero-allocation execution**: `MemoryPlanner` (a port of ggml-alloc) performs liveness analysis, inplace reuse and view sharing at compile time, producing an immutable `GraphPlan`
+- **Multiple backends**: `feml-cpu` / `feml-cuda` / `feml-opencl` behind a unified `Backend` trait (`Send + Sync`, zero panics, out-of-bounds is an error)
+- **ggml-compatible data layout**: `[K, M]` contiguous, quantized type table (Q4_0 ~ Q8_K) mapped 1:1 to GGML
+- **Inference op interfaces**: mul / add / mul_mat / rms_norm / silu / softmax / rope / get_rows / concat / copy / mul_mat_id / diag_mask_inf / scale
 
-### Build Feml
+## Repository layout
 
-```shell
-cargo build # build feml shared library
+```
+feml/                    workspace
+├── feml-core/           tensor types, graph, plan, memory planner, backend traits (zero dependencies)
+├── feml-cpu/            CPU backend (mul/add/mul_mat kernels)
+├── feml-cuda/           CUDA backend (cudarc; mul/add/mul_mat kernels, NVRTC at runtime)
+├── feml-opencl/         OpenCL backend (strided mul + mul_mat kernels)
+├── legacy/              v0 code (kept in git history, not a workspace member)
+└── docs/                DESIGN.md / backend-guide.md / api-guide.md
 ```
 
-The default feature set enables the CPU backend. Optional backends can be built with features:
+## Quick start
 
-```shell
-cargo build --features opencl
-cargo build --features cuda
+```rust
+use feml_core::prelude::*;
+use feml_cpu::CpuBackend;
+
+let backend = CpuBackend::new();
+let mut g = GraphBuilder::new();
+
+let a = g.input("a", DType::F32, shape![16, 8])?;
+let b = g.input("b", DType::F32, shape![16, 8])?;
+let c = g.mul(a, b)?;
+g.mark_output(c)?;
+
+let plan = g.compile(&backend)?;      // topo sort + memory planning + buffer allocation
+backend.graph_compute(&plan)?;        // zero-allocation execution
 ```
 
-### Test
+See [docs/api-guide.md](docs/api-guide.md) for detailed usage.
+
+## Build & test
 
 ```shell
-cargo test
-cargo test --test cpu_tests
+cargo build --workspace
+cargo test --workspace          # 83 tests (numeric verification on a real CUDA GPU; OpenCL/CUDA tests skip without a device)
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-### Format Code
-
-```shell
-cargo fmt   # format project
-
-cargo fmt --check # check format is right (not modify files)
-
-rustfmt src/*.rs # format project
-```

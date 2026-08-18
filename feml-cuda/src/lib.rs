@@ -1,0 +1,15 @@
+//! feml-cuda: CUDA backend for feml-core (cudarc driver API).
+//!
+//! Kernel sources are embedded at compile time (`include_str!`) and compiled
+//! to PTX at backend init via NVRTC; buffers are opaque handles managed by the
+//! backend (see `feml-core::backend::Backend`).
+
+mod backend;
+mod device;
+mod ops;
+
+pub use backend::CudaBackend;
+pub use device::{CudaBackendDevice, CudaRegistrar};
+
+/// Versioned plugin entry points (ggml `GGML_BACKEND_API_VERSION` analog).
+pub const API_VERSION: u32 = 1;
